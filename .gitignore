@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# Coverage / tests
+coverage/
+.nyc_output/
+
+# IDE / OS
+.vscode/*
+!.vscode/settings.json.example
+.idea/
+.DS_Store
+Thumbs.db
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional lock files from other package managers
+yarn.lock
+pnpm-lock.yaml
+
+# Local uploads / temp
+uploads/
+tmp/
+FBR.docx
+Digital Invoucing User Manual.pdf
+Technical Documentation for DI API.pdf
