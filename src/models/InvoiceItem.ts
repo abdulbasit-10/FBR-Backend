@@ -28,6 +28,8 @@ export interface InvoiceItemAttributes {
   discount: number;
   saleType: string;
   sroItemSerialNo: string | null;
+  unitPrice: number;
+  discountPercent: number;
 
   // FBR per-item response
   fbrInvoiceNo: string | null;
@@ -53,6 +55,8 @@ export type InvoiceItemCreationAttributes = Optional<
   | 'fedPayable'
   | 'discount'
   | 'sroItemSerialNo'
+  | 'unitPrice'
+  | 'discountPercent'
   | 'fbrInvoiceNo'
   | 'fbrStatusCode'
   | 'fbrStatus'
@@ -91,6 +95,8 @@ export class InvoiceItem
   declare discount: number;
   declare saleType: string;
   declare sroItemSerialNo: string | null;
+  declare unitPrice: number;
+  declare discountPercent: number;
   declare fbrInvoiceNo: string | null;
   declare fbrStatusCode: string | null;
   declare fbrStatus: string | null;
@@ -186,6 +192,20 @@ InvoiceItem.init(
     },
     saleType: { type: DataTypes.STRING(150), allowNull: false, field: 'sale_type' },
     sroItemSerialNo: { type: DataTypes.STRING(50), allowNull: true, field: 'sro_item_serial_no' },
+    unitPrice: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'unit_price',
+      get: decGet('unitPrice'),
+    },
+    discountPercent: {
+      type: DataTypes.DECIMAL(8, 4),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'discount_percent',
+      get: decGet('discountPercent'),
+    },
 
     fbrInvoiceNo: { type: DataTypes.STRING(60), allowNull: true, field: 'fbr_invoice_no' },
     fbrStatusCode: { type: DataTypes.STRING(10), allowNull: true, field: 'fbr_status_code' },

@@ -8,13 +8,27 @@ import {
   paginationMeta,
 } from '../utils/pagination';
 
+export interface CustomerListParams extends PaginationParams {
+  type?: string;
+  registrationType?: string;
+}
+
 export const listCustomers = async (
   companyId: number,
-  params: PaginationParams,
+  params: CustomerListParams,
 ): Promise<PaginatedResult<Customer>> => {
   const { page, limit, offset } = normalisePagination(params);
-  const search = buildSearchWhere(params.search, ['businessName', 'ntnCnic', 'province', 'email']);
-  const where = { companyId, ...(search ?? {}) };
+  const search = buildSearchWhere(params.search, [
+    'businessName',
+    'ntnCnic',
+    'strn',
+    'customerNo',
+    'province',
+    'email',
+  ]);
+  const where: Record<string, unknown> = { companyId, ...(search ?? {}) };
+  if (params.type) where['customerType'] = params.type;
+  if (params.registrationType) where['registrationType'] = params.registrationType;
   const { rows, count } = await Customer.findAndCountAll({
     where,
     order: [
@@ -42,7 +56,15 @@ export const createCustomer = async (
   companyId: number,
   data: Omit<CustomerCreationAttributes, 'companyId'>,
 ): Promise<Customer> => {
-  return Customer.create({ ...data, companyId } as CustomerCreationAttributes);
+  const last = await Customer.findOne({
+    where: { companyId },
+    order: [['id', 'DESC']],
+    attributes: ['customerNo'],
+    paranoid: false,
+  });
+  const lastNum = last?.customerNo ? parseInt(last.customerNo.replace('C-', ''), 10) || 0 : 0;
+  const customerNo = `C-${String(lastNum + 1).padStart(6, '0')}`;
+  return Customer.create({ ...data, companyId, customerNo } as CustomerCreationAttributes);
 };
 
 export const updateCustomer = async (

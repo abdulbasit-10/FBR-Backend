@@ -19,6 +19,9 @@ export interface InvoiceAttributes {
 
   invoiceType: InvoiceType;
   invoiceDate: string; // 'YYYY-MM-DD'
+  postingDate: string | null; // 'YYYY-MM-DD'
+  poDate: string | null;
+  poNumber: string | null;
   invoiceRefNo: string | null; // only for Debit Note
   scenarioId: string | null; // sandbox only
 
@@ -44,6 +47,7 @@ export interface InvoiceAttributes {
   totalFedPayable: number;
   totalDiscount: number;
   totalValueIncludingST: number;
+  advanceTax: number;
 
   // --- FBR response bookkeeping ---
   fbrInvoiceNumber: string | null;
@@ -84,6 +88,10 @@ export type InvoiceCreationAttributes = Optional<
   | 'fbrErrorCode'
   | 'fbrError'
   | 'fbrRawResponse'
+  | 'postingDate'
+  | 'poDate'
+  | 'poNumber'
+  | 'advanceTax'
   | 'postedAt'
   | 'notes'
 >;
@@ -105,6 +113,9 @@ export class Invoice
   declare createdBy: number;
   declare invoiceType: InvoiceType;
   declare invoiceDate: string;
+  declare postingDate: string | null;
+  declare poDate: string | null;
+  declare poNumber: string | null;
   declare invoiceRefNo: string | null;
   declare scenarioId: string | null;
   declare status: InvoiceStatus;
@@ -125,6 +136,7 @@ export class Invoice
   declare totalFedPayable: number;
   declare totalDiscount: number;
   declare totalValueIncludingST: number;
+  declare advanceTax: number;
   declare fbrInvoiceNumber: string | null;
   declare fbrDated: Date | null;
   declare fbrStatusCode: string | null;
@@ -158,6 +170,9 @@ Invoice.init(
       field: 'invoice_type',
     },
     invoiceDate: { type: DataTypes.DATEONLY, allowNull: false, field: 'invoice_date' },
+    postingDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'posting_date' },
+    poDate: { type: DataTypes.DATEONLY, allowNull: true, field: 'po_date' },
+    poNumber: { type: DataTypes.STRING(50), allowNull: true, field: 'po_number' },
     invoiceRefNo: { type: DataTypes.STRING(50), allowNull: true, field: 'invoice_ref_no' },
     scenarioId: { type: DataTypes.STRING(10), allowNull: true, field: 'scenario_id' },
 
@@ -242,6 +257,13 @@ Invoice.init(
       defaultValue: 0,
       field: 'total_value_including_st',
       get: decimalGetter('totalValueIncludingST'),
+    },
+    advanceTax: {
+      type: DataTypes.DECIMAL(18, 4),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'advance_tax',
+      get: decimalGetter('advanceTax'),
     },
 
     fbrInvoiceNumber: { type: DataTypes.STRING(50), allowNull: true, field: 'fbr_invoice_number' },

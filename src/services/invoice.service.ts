@@ -31,6 +31,8 @@ export interface CreateInvoiceItemInput {
   discount?: number;
   saleType: string;
   sroItemSerialNo?: string | null;
+  unitPrice?: number;
+  discountPercent?: number;
 }
 
 export interface CreateInvoiceInput {
@@ -39,6 +41,10 @@ export interface CreateInvoiceInput {
   invoiceDate: string; // YYYY-MM-DD
   invoiceRefNo?: string | null;
   scenarioId?: string | null;
+  postingDate?: string | null;
+  poDate?: string | null;
+  poNumber?: string | null;
+  advanceTax?: number;
   environment?: 'sandbox' | 'production';
   notes?: string | null;
   items: CreateInvoiceItemInput[];
@@ -181,6 +187,10 @@ export const createInvoice = async (
         createdBy: userId,
         invoiceType: input.invoiceType ?? 'Sale Invoice',
         invoiceDate: toDateOnly(input.invoiceDate),
+        postingDate: input.postingDate ? toDateOnly(input.postingDate) : null,
+        poDate: input.poDate ? toDateOnly(input.poDate) : null,
+        poNumber: input.poNumber ?? null,
+        advanceTax: Number(input.advanceTax ?? 0),
         invoiceRefNo: input.invoiceRefNo ?? null,
         scenarioId: input.scenarioId ?? null,
         status: 'draft',
@@ -228,6 +238,8 @@ export const createInvoice = async (
           discount: Number(it.discount ?? 0),
           saleType: it.saleType,
           sroItemSerialNo: it.sroItemSerialNo ?? null,
+          unitPrice: Number(it.unitPrice ?? 0),
+          discountPercent: Number(it.discountPercent ?? 0),
         } as InvoiceItemCreationAttributes,
         { transaction },
       );
@@ -342,6 +354,10 @@ export const updateInvoice = async (
     }
     if (input.invoiceType) invoice.invoiceType = input.invoiceType;
     if (input.invoiceDate) invoice.invoiceDate = toDateOnly(input.invoiceDate);
+    if (input.postingDate !== undefined) invoice.postingDate = input.postingDate ? toDateOnly(input.postingDate) : null;
+    if (input.poDate !== undefined) invoice.poDate = input.poDate ? toDateOnly(input.poDate) : null;
+    if (input.poNumber !== undefined) invoice.poNumber = input.poNumber ?? null;
+    if (input.advanceTax !== undefined) invoice.advanceTax = Number(input.advanceTax);
     if (input.invoiceRefNo !== undefined) invoice.invoiceRefNo = input.invoiceRefNo;
     if (input.scenarioId !== undefined) invoice.scenarioId = input.scenarioId;
     if (input.environment) invoice.environment = input.environment;
@@ -374,6 +390,8 @@ export const updateInvoice = async (
             discount: Number(it.discount ?? 0),
             saleType: it.saleType,
             sroItemSerialNo: it.sroItemSerialNo ?? null,
+            unitPrice: Number(it.unitPrice ?? 0),
+            discountPercent: Number(it.discountPercent ?? 0),
           } as InvoiceItemCreationAttributes,
           { transaction },
         );

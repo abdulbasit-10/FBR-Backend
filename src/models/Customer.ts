@@ -16,6 +16,9 @@ export interface CustomerAttributes {
   phone: string | null;
   email: string | null;
   isActive: boolean;
+  customerNo: string | null;
+  customerType: 'Individual' | 'Company';
+  strn: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   deletedAt?: Date | null;
@@ -23,7 +26,7 @@ export interface CustomerAttributes {
 
 export type CustomerCreationAttributes = Optional<
   CustomerAttributes,
-  'id' | 'uuid' | 'ntnCnic' | 'phone' | 'email' | 'isActive'
+  'id' | 'uuid' | 'ntnCnic' | 'phone' | 'email' | 'isActive' | 'customerNo' | 'customerType' | 'strn'
 >;
 
 export class Customer
@@ -41,6 +44,9 @@ export class Customer
   declare phone: string | null;
   declare email: string | null;
   declare isActive: boolean;
+  declare customerNo: string | null;
+  declare customerType: 'Individual' | 'Company';
+  declare strn: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
   declare readonly deletedAt: Date | null;
@@ -72,8 +78,14 @@ Customer.init(
       allowNull: false,
       defaultValue: true,
       field: 'is_active',
+    },    customerNo: { type: DataTypes.STRING(10), allowNull: true, field: 'customer_no' },
+    customerType: {
+      type: DataTypes.ENUM('Individual', 'Company'),
+      allowNull: false,
+      defaultValue: 'Individual',
+      field: 'customer_type',
     },
-  },
+    strn: { type: DataTypes.STRING(20), allowNull: true },  },
   {
     sequelize,
     modelName: 'Customer',
