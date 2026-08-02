@@ -56,9 +56,11 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
 // ---------- Roles & Permissions ----------
 
-export const listRoles = asyncHandler(async (_req: Request, res: Response) =>
-  sendSuccess(res, await userService.listRoles()),
-);
+export const listRoles = asyncHandler(async (req: Request, res: Response) => {
+  // Company-scoped callers must not see platform-only roles (e.g. SuperAdmin)
+  const excludePlatform = req.user?.roleName !== 'SuperAdmin';
+  return sendSuccess(res, await userService.listRoles(excludePlatform));
+});
 
 export const getRole = asyncHandler(async (req: Request, res: Response) =>
   sendSuccess(res, await userService.getRoleByUuid(req.params.uuid)),

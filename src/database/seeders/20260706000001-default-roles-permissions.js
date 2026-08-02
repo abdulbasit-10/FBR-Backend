@@ -3,7 +3,7 @@
 /**
  * Seeds:
  *  - Default permissions (module.action)
- *  - Default roles (SuperAdmin, CompanyAdmin, Accountant, Viewer)
+ *  - Default roles (SuperAdmin, CompanyAdmin)
  *  - Role → Permission assignments
  *
  * SuperAdmin user is created in a separate seeder so it can be re-run

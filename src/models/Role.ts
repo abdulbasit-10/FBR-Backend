@@ -5,16 +5,17 @@ import sequelize from '../database/connection';
 export interface RoleAttributes {
   id: number;
   uuid: string;
-  name: string; // e.g. 'SuperAdmin', 'CompanyAdmin', 'Accountant', 'Viewer'
+  name: string; // e.g. 'SuperAdmin', 'CompanyAdmin'
   description: string | null;
   isSystemRole: boolean;
+  isPlatformRole: boolean; // true = cannot be assigned to company-scoped users
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 export type RoleCreationAttributes = Optional<
   RoleAttributes,
-  'id' | 'uuid' | 'description' | 'isSystemRole'
+  'id' | 'uuid' | 'description' | 'isSystemRole' | 'isPlatformRole'
 >;
 
 export class Role extends Model<RoleAttributes, RoleCreationAttributes> implements RoleAttributes {
@@ -23,6 +24,7 @@ export class Role extends Model<RoleAttributes, RoleCreationAttributes> implemen
   declare name: string;
   declare description: string | null;
   declare isSystemRole: boolean;
+  declare isPlatformRole: boolean;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
 }
@@ -43,6 +45,12 @@ Role.init(
       allowNull: false,
       defaultValue: false,
       field: 'is_system_role',
+    },
+    isPlatformRole: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'is_platform_role',
     },
   },
   {

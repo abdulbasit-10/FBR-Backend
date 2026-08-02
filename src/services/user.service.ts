@@ -10,7 +10,7 @@ import {
   UserCreationAttributes,
   sequelize,
 } from '../models';
-import { ConflictError, NotFoundError, BadRequestError } from '../utils/AppError';
+import { ConflictError, NotFoundError, BadRequestError, ForbiddenError } from '../utils/AppError';
 import {
   PaginationParams,
   PaginatedResult,
@@ -63,6 +63,13 @@ export const createUser = async (
   const existing = await User.findOne({ where: { email: data.email.toLowerCase().trim() } });
   if (existing) throw new ConflictError('Email already in use');
 
+  if (data.companyId) {
+    const role = await Role.findByPk(data.roleId);
+    if (!role) throw new NotFoundError('Role not found');
+    if (role.isPlatformRole)
+      throw new ForbiddenError('Platform roles cannot be assigned to company users');
+  }
+
   const passwordHash = await bcrypt.hash(data.password, config.jwt.bcryptSaltRounds);
   const created = await User.create({
     name: data.name,
@@ -91,7 +98,16 @@ export const updateUser = async (
   }
   if (data.name !== undefined) user.name = data.name;
   if (data.phone !== undefined) user.phone = data.phone;
-  if (data.roleId !== undefined) user.roleId = data.roleId;
+  if (data.roleId !== undefined) {
+    const effectiveCompanyId = data.companyId !== undefined ? data.companyId : user.companyId;
+    if (effectiveCompanyId && data.roleId !== user.roleId) {
+      const newRole = await Role.findByPk(data.roleId);
+      if (!newRole) throw new NotFoundError('Role not found');
+      if (newRole.isPlatformRole)
+        throw new ForbiddenError('Platform roles cannot be assigned to company users');
+    }
+    user.roleId = data.roleId;
+  }
   if (data.companyId !== undefined) user.companyId = data.companyId;
   if (data.isActive !== undefined) user.isActive = data.isActive;
 
@@ -119,8 +135,9 @@ export const resetPassword = async (
 
 // ---------- Roles & Permissions ----------
 
-export const listRoles = () =>
+export const listRoles = (excludePlatform = false) =>
   Role.findAll({
+    where: excludePlatform ? { isPlatformRole: false } : {},
     include: [{ model: Permission, as: 'permissions', through: { attributes: [] } }],
     order: [['name', 'ASC']],
   });
