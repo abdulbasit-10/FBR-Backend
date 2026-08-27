@@ -19,6 +19,11 @@ export interface CustomerAttributes {
   customerNo: string | null;
   customerType: 'Individual' | 'Company';
   strn: string | null;
+  contact: string | null;
+  contactPerson: string | null;
+  whatsapp: string | null;
+  website: string | null;
+  mappingId: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   deletedAt?: Date | null;
@@ -26,7 +31,7 @@ export interface CustomerAttributes {
 
 export type CustomerCreationAttributes = Optional<
   CustomerAttributes,
-  'id' | 'uuid' | 'ntnCnic' | 'phone' | 'email' | 'isActive' | 'customerNo' | 'customerType' | 'strn'
+  'id' | 'uuid' | 'ntnCnic' | 'phone' | 'email' | 'isActive' | 'customerNo' | 'customerType' | 'strn' | 'contact' | 'contactPerson' | 'whatsapp' | 'website' | 'mappingId'
 >;
 
 export class Customer
@@ -47,6 +52,11 @@ export class Customer
   declare customerNo: string | null;
   declare customerType: 'Individual' | 'Company';
   declare strn: string | null;
+  declare contact: string | null;
+  declare contactPerson: string | null;
+  declare whatsapp: string | null;
+  declare website: string | null;
+  declare mappingId: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
   declare readonly deletedAt: Date | null;
@@ -85,7 +95,13 @@ Customer.init(
       defaultValue: 'Individual',
       field: 'customer_type',
     },
-    strn: { type: DataTypes.STRING(20), allowNull: true },  },
+    strn: { type: DataTypes.STRING(20), allowNull: true },
+    contact: { type: DataTypes.STRING(50), allowNull: true },
+    contactPerson: { type: DataTypes.STRING(255), allowNull: true, field: 'contact_person' },
+    whatsapp: { type: DataTypes.STRING(30), allowNull: true },
+    website: { type: DataTypes.STRING(255), allowNull: true },
+    mappingId: { type: DataTypes.STRING(100), allowNull: true, field: 'mapping_id' },
+  },
   {
     sequelize,
     modelName: 'Customer',

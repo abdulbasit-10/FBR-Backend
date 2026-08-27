@@ -18,6 +18,9 @@ export interface VendorAttributes {
   address: string;
   phone: string | null;
   email: string | null;
+  contactPerson: string | null;
+  whatsapp: string | null;
+  website: string | null;
   isActive: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -33,6 +36,9 @@ export type VendorCreationAttributes = Optional<
   | 'strn'
   | 'phone'
   | 'email'
+  | 'contactPerson'
+  | 'whatsapp'
+  | 'website'
   | 'isActive'
   | 'vendorType'
 >;
@@ -54,6 +60,9 @@ export class Vendor
   declare address: string;
   declare phone: string | null;
   declare email: string | null;
+  declare contactPerson: string | null;
+  declare whatsapp: string | null;
+  declare website: string | null;
   declare isActive: boolean;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
@@ -89,6 +98,9 @@ Vendor.init(
     address: { type: DataTypes.STRING(500), allowNull: false },
     phone: { type: DataTypes.STRING(30), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true, validate: { isEmail: true } },
+    contactPerson: { type: DataTypes.STRING(255), allowNull: true, field: 'contact_person' },
+    whatsapp: { type: DataTypes.STRING(30), allowNull: true },
+    website: { type: DataTypes.STRING(255), allowNull: true },
     isActive: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

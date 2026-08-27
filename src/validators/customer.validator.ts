@@ -1,8 +1,17 @@
 import Joi from 'joi';
+import { NTN_CNIC_PATTERN } from '../constants/fbr';
+
+const ntnCnicField = Joi.string()
+  .trim()
+  .pattern(NTN_CNIC_PATTERN, 'NTN (7 digits) or CNIC (13 digits)');
 
 export const createCustomerSchema = Joi.object({
   businessName: Joi.string().trim().min(2).max(255).required(),
-  ntnCnic: Joi.string().trim().max(20).allow(null, '').optional(),
+  ntnCnic: Joi.when('registrationType', {
+    is: 'Registered',
+    then: ntnCnicField.required(),
+    otherwise: ntnCnicField.allow(null, '').optional(),
+  }),
   registrationType: Joi.string().valid('Registered', 'Unregistered').required(),
   customerType: Joi.string().valid('Individual', 'Company').default('Individual'),
   strn: Joi.string().trim().max(20).allow(null, '').optional(),
@@ -10,17 +19,17 @@ export const createCustomerSchema = Joi.object({
   address: Joi.string().trim().min(2).max(500).required(),
   phone: Joi.string().trim().max(30).allow(null, '').optional(),
   email: Joi.string().email().lowercase().trim().allow(null, '').optional(),
+  contact: Joi.string().trim().max(50).allow(null, '').optional(),
+  contactPerson: Joi.string().trim().max(255).allow(null, '').optional(),
+  whatsapp: Joi.string().trim().max(30).allow(null, '').optional(),
+  website: Joi.string().trim().max(255).allow(null, '').optional(),
+  mappingId: Joi.string().trim().max(100).allow(null, '').optional(),
   isActive: Joi.boolean().default(true),
-}).custom((value, helpers) => {
-  if (value.registrationType === 'Registered' && !value.ntnCnic) {
-    return helpers.error('any.custom', { message: 'ntnCnic is required for Registered buyers' });
-  }
-  return value;
 });
 
 export const updateCustomerSchema = Joi.object({
   businessName: Joi.string().trim().min(2).max(255).optional(),
-  ntnCnic: Joi.string().trim().max(20).allow(null, '').optional(),
+  ntnCnic: ntnCnicField.allow(null, '').optional(),
   registrationType: Joi.string().valid('Registered', 'Unregistered').optional(),
   customerType: Joi.string().valid('Individual', 'Company').optional(),
   strn: Joi.string().trim().max(20).allow(null, '').optional(),
@@ -28,5 +37,10 @@ export const updateCustomerSchema = Joi.object({
   address: Joi.string().trim().min(2).max(500).optional(),
   phone: Joi.string().trim().max(30).allow(null, '').optional(),
   email: Joi.string().email().lowercase().trim().allow(null, '').optional(),
+  contact: Joi.string().trim().max(50).allow(null, '').optional(),
+  contactPerson: Joi.string().trim().max(255).allow(null, '').optional(),
+  whatsapp: Joi.string().trim().max(30).allow(null, '').optional(),
+  website: Joi.string().trim().max(255).allow(null, '').optional(),
+  mappingId: Joi.string().trim().max(100).allow(null, '').optional(),
   isActive: Joi.boolean().optional(),
 });

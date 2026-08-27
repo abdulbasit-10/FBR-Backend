@@ -10,6 +10,9 @@ export const createVendorSchema = Joi.object({
   address: Joi.string().trim().min(2).max(500).required(),
   phone: Joi.string().trim().max(30).allow(null, '').optional(),
   email: Joi.string().email().lowercase().trim().allow(null, '').optional(),
+  contactPerson: Joi.string().trim().max(255).allow(null, '').optional(),
+  whatsapp: Joi.string().trim().max(30).allow(null, '').optional(),
+  website: Joi.string().trim().max(255).allow(null, '').optional(),
   isActive: Joi.boolean().default(true),
 });
 
@@ -23,5 +26,8 @@ export const updateVendorSchema = Joi.object({
   address: Joi.string().trim().min(2).max(500).optional(),
   phone: Joi.string().trim().max(30).allow(null, '').optional(),
   email: Joi.string().email().lowercase().trim().allow(null, '').optional(),
+  contactPerson: Joi.string().trim().max(255).allow(null, '').optional(),
+  whatsapp: Joi.string().trim().max(30).allow(null, '').optional(),
+  website: Joi.string().trim().max(255).allow(null, '').optional(),
   isActive: Joi.boolean().optional(),
 });

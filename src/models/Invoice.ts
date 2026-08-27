@@ -60,6 +60,7 @@ export interface InvoiceAttributes {
 
   postedAt: Date | null;
   notes: string | null;
+  mappingId: string | null;
 
   createdAt?: Date;
   updatedAt?: Date;
@@ -94,6 +95,7 @@ export type InvoiceCreationAttributes = Optional<
   | 'advanceTax'
   | 'postedAt'
   | 'notes'
+  | 'mappingId'
 >;
 
 const decimalGetter = (field: keyof InvoiceAttributes) =>
@@ -146,6 +148,7 @@ export class Invoice
   declare fbrRawResponse: object | null;
   declare postedAt: Date | null;
   declare notes: string | null;
+  declare mappingId: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
   declare readonly deletedAt: Date | null;
@@ -276,6 +279,7 @@ Invoice.init(
 
     postedAt: { type: DataTypes.DATE, allowNull: true, field: 'posted_at' },
     notes: { type: DataTypes.TEXT, allowNull: true },
+    mappingId: { type: DataTypes.STRING(100), allowNull: true, field: 'mapping_id' },
   },
   {
     sequelize,

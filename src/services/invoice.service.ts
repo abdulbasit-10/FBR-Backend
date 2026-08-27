@@ -9,6 +9,10 @@ import * as fbrTokens from './fbr-token.service';
 import { Queue } from './queue.service';
 import type { InvoiceAttributes } from '../models/Invoice';
 import type { InvoiceItemCreationAttributes } from '../models/InvoiceItem';
+import {
+  applicableScenarios,
+  isScenarioApplicable,
+} from '../constants/fbrScenarios';
 
 // ---------- Types ----------
 
@@ -176,6 +180,56 @@ export const createInvoice = async (
   const items = input.items;
   if (!items?.length) throw new BadRequestError('Invoice must have at least one item');
 
+  const invoiceType = input.invoiceType ?? 'Sale Invoice';
+  const environment =
+    input.environment ??
+    (company.fbrEnvironment === 'production' ? 'production' : 'sandbox');
+
+  // Rule §4.1.2: buyer NTN/CNIC is mandatory when the buyer is Registered.
+  if (customer.registrationType === 'Registered' && !customer.ntnCnic) {
+    throw new BadRequestError(
+      'Buyer is Registered but customer record has no NTN/CNIC. Update the customer before invoicing.',
+    );
+  }
+
+  // Rule spec error 0034: Debit Note must be within 180 days of the original invoice.
+  if (invoiceType === 'Debit Note' && input.invoiceRefNo) {
+    const original = await Invoice.findOne({
+      where: { companyId, fbrInvoiceNumber: input.invoiceRefNo },
+    });
+    if (original) {
+      const originalDate = new Date(original.invoiceDate);
+      const noteDate = new Date(input.invoiceDate);
+      if (noteDate < originalDate) {
+        throw new BadRequestError(
+          'Debit Note date must be greater than or equal to the original invoice date.',
+        );
+      }
+      const days = (noteDate.getTime() - originalDate.getTime()) / (1000 * 60 * 60 * 24);
+      if (days > 180) {
+        throw new BadRequestError(
+          'Debit Note can only be added within 180 days of the original invoice date.',
+        );
+      }
+    }
+  }
+
+  // Rule §10: chosen scenarioId must be applicable to the seller's declared
+  // business activity × sector when both are set on the company.
+  if (
+    environment === 'sandbox' &&
+    input.scenarioId &&
+    company.businessActivity &&
+    company.sector &&
+    !isScenarioApplicable(company.businessActivity, company.sector, input.scenarioId)
+  ) {
+    const list = applicableScenarios(company.businessActivity, company.sector);
+    throw new BadRequestError(
+      `Scenario ${input.scenarioId} is not applicable to ${company.businessActivity} / ${company.sector}. ` +
+        `Allowed: ${list?.join(', ') ?? '—'}.`,
+    );
+  }
+
   const totals = computeTotals(items);
 
   return sequelize.transaction(async (transaction) => {
@@ -185,7 +239,7 @@ export const createInvoice = async (
         companyId,
         customerId: customer.id,
         createdBy: userId,
-        invoiceType: input.invoiceType ?? 'Sale Invoice',
+        invoiceType,
         invoiceDate: toDateOnly(input.invoiceDate),
         postingDate: input.postingDate ? toDateOnly(input.postingDate) : null,
         poDate: input.poDate ? toDateOnly(input.poDate) : null,
@@ -194,8 +248,7 @@ export const createInvoice = async (
         invoiceRefNo: input.invoiceRefNo ?? null,
         scenarioId: input.scenarioId ?? null,
         status: 'draft',
-        environment:
-          (input.environment ?? company.fbrEnvironment === 'production') ? 'production' : 'sandbox',
+        environment,
         // Seller snapshot from company
         sellerNtnCnic: company.ntn,
         sellerBusinessName: company.businessName,

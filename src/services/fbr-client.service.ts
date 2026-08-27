@@ -82,8 +82,8 @@ export interface FbrItemStatus {
   itemSNo: string;
   statusCode: string;
   status: string;
-  invoiceNo: string;
-  errorCode: string;
+  invoiceNo: string | null;
+  errorCode: string | null;
   error: string;
 }
 

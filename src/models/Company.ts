@@ -1,6 +1,7 @@
 import { DataTypes, Model, Optional } from 'sequelize';
 import { randomUUID } from 'crypto';
 import sequelize from '../database/connection';
+import type { FbrBusinessActivity, FbrSector } from '../constants/fbrScenarios';
 
 export type FbrEnvironment = 'sandbox' | 'production' | 'both';
 
@@ -15,6 +16,8 @@ export interface CompanyAttributes {
   phone: string | null;
   email: string | null;
   salesTaxRegNo: string | null;
+  businessActivity: FbrBusinessActivity | null;
+  sector: FbrSector | null;
   fbrEnvironment: FbrEnvironment;
   isActive: boolean;
   createdAt?: Date;
@@ -24,7 +27,7 @@ export interface CompanyAttributes {
 
 export type CompanyCreationAttributes = Optional<
   CompanyAttributes,
-  'id' | 'uuid' | 'phone' | 'email' | 'salesTaxRegNo' | 'fbrEnvironment' | 'isActive'
+  'id' | 'uuid' | 'phone' | 'email' | 'salesTaxRegNo' | 'businessActivity' | 'sector' | 'fbrEnvironment' | 'isActive'
 >;
 
 export class Company
@@ -41,6 +44,8 @@ export class Company
   declare phone: string | null;
   declare email: string | null;
   declare salesTaxRegNo: string | null;
+  declare businessActivity: FbrBusinessActivity | null;
+  declare sector: FbrSector | null;
   declare fbrEnvironment: FbrEnvironment;
   declare isActive: boolean;
   declare readonly createdAt: Date;
@@ -65,6 +70,15 @@ Company.init(
     phone: { type: DataTypes.STRING(30), allowNull: true },
     email: { type: DataTypes.STRING(255), allowNull: true, validate: { isEmail: true } },
     salesTaxRegNo: { type: DataTypes.STRING(50), allowNull: true, field: 'sales_tax_reg_no' },
+    businessActivity: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      field: 'business_activity',
+    },
+    sector: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
     fbrEnvironment: {
       type: DataTypes.ENUM('sandbox', 'production', 'both'),
       allowNull: false,

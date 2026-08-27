@@ -1,8 +1,16 @@
 import Joi from 'joi';
+import {
+  FBR_SANDBOX_SCENARIOS,
+  HS_CODE_PATTERN,
+  DEBIT_NOTE_REF_LENGTHS,
+} from '../constants/fbr';
 
 const invoiceItemSchema = Joi.object({
   productId: Joi.number().integer().positive().allow(null).optional(),
-  hsCode: Joi.string().trim().max(20).required(),
+  hsCode: Joi.string()
+    .trim()
+    .pattern(HS_CODE_PATTERN, 'HS code in NNNN.NNNN format')
+    .required(),
   productDescription: Joi.string().trim().max(1000).required(),
   rate: Joi.string().trim().max(50).required(),
   uom: Joi.string().trim().max(100).required(),
@@ -23,26 +31,47 @@ const invoiceItemSchema = Joi.object({
   discountPercent: Joi.number().min(0).max(100).precision(4).default(0),
 });
 
+const scenarioIdField = Joi.string()
+  .trim()
+  .valid(...FBR_SANDBOX_SCENARIOS);
+
+// Debit-note invoiceRefNo: digits only, 22 chars (NTN) or 28 chars (CNIC).
+const invoiceRefNoField = Joi.string()
+  .trim()
+  .pattern(/^\d+$/, 'digits only')
+  .custom((value, helpers) => {
+    if (!DEBIT_NOTE_REF_LENGTHS.includes(value.length as 22 | 28)) {
+      return helpers.error('any.invalid');
+    }
+    return value;
+  })
+  .messages({
+    'any.invalid':
+      'invoiceRefNo must be 22 digits (NTN case) or 28 digits (CNIC case)',
+  });
+
 export const createInvoiceSchema = Joi.object({
   customerId: Joi.number().integer().positive().required(),
   invoiceType: Joi.string().valid('Sale Invoice', 'Debit Note').default('Sale Invoice'),
   invoiceDate: Joi.date().iso().required(),
-  postingDate: Joi.date().iso().required(),
+  postingDate: Joi.date().iso().optional(),
   poDate: Joi.date().iso().allow(null).optional(),
   poNumber: Joi.string().trim().max(50).allow(null, '').optional(),
   advanceTax: Joi.number().min(0).precision(4).default(0),
-  invoiceRefNo: Joi.string().trim().max(50).allow(null, '').optional(),
-  scenarioId: Joi.string().trim().max(10).allow(null, '').optional(),
   environment: Joi.string().valid('sandbox', 'production').default('sandbox'),
+  invoiceRefNo: Joi.when('invoiceType', {
+    is: 'Debit Note',
+    then: invoiceRefNoField.required(),
+    otherwise: Joi.string().trim().max(50).allow(null, '').optional(),
+  }),
+  scenarioId: Joi.when('environment', {
+    is: 'sandbox',
+    then: scenarioIdField.required(),
+    otherwise: Joi.any().strip(),
+  }),
   notes: Joi.string().trim().max(2000).allow(null, '').optional(),
+  mappingId: Joi.string().trim().max(100).allow(null, '').optional(),
   items: Joi.array().items(invoiceItemSchema).min(1).required(),
-}).custom((value, helpers) => {
-  if (value.invoiceType === 'Debit Note' && !value.invoiceRefNo) {
-    return helpers.error('any.custom', {
-      message: 'invoiceRefNo is required for Debit Note',
-    });
-  }
-  return value;
 });
 
 export const updateInvoiceSchema = Joi.object({
@@ -53,10 +82,11 @@ export const updateInvoiceSchema = Joi.object({
   poDate: Joi.date().iso().allow(null).optional(),
   poNumber: Joi.string().trim().max(50).allow(null, '').optional(),
   advanceTax: Joi.number().min(0).precision(4).optional(),
-  invoiceRefNo: Joi.string().trim().max(50).allow(null, '').optional(),
-  scenarioId: Joi.string().trim().max(10).allow(null, '').optional(),
+  invoiceRefNo: invoiceRefNoField.allow(null, '').optional(),
+  scenarioId: scenarioIdField.allow(null, '').optional(),
   environment: Joi.string().valid('sandbox', 'production').optional(),
   notes: Joi.string().trim().max(2000).allow(null, '').optional(),
+  mappingId: Joi.string().trim().max(100).allow(null, '').optional(),
   items: Joi.array().items(invoiceItemSchema).min(1).optional(),
 });
 
