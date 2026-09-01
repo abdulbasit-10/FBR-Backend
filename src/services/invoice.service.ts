@@ -226,7 +226,7 @@ export const createInvoice = async (
     const list = applicableScenarios(company.businessActivity, company.sector);
     throw new BadRequestError(
       `Scenario ${input.scenarioId} is not applicable to ${company.businessActivity} / ${company.sector}. ` +
-        `Allowed: ${list?.join(', ') ?? '—'}.`,
+      `Allowed: ${list?.join(', ') ?? '—'}.`,
     );
   }
 
@@ -556,6 +556,23 @@ export const submitInvoice = async (
     order: [['item_sr_no', 'ASC']],
   });
 
+  // Skip real FBR call when FBR_MOCK_MODE=true (testing without credentials)
+  if (process.env.FBR_MOCK_MODE === 'true') {
+    // Use the same SI-#### numbering as everywhere else — no "MOCK-" noise in the invoice list
+    const mockNo = `SI-${String(invoice.id).padStart(4, '0')}`;
+    invoice.status = mode === 'post' ? 'posted' : 'validated';
+    invoice.fbrInvoiceNumber = mode === 'post' ? mockNo : null;
+    invoice.fbrStatus = 'Success';
+    invoice.fbrError = null;
+    invoice.fbrErrorCode = null;
+    await invoice.save();
+    await logEvent(invoice.id, mode === 'post' ? 'posted' : 'validated', {
+      userId, fromStatus: 'draft', toStatus: invoice.status,
+      message: `Mock FBR response (FBR_MOCK_MODE=true): ${mockNo}`,
+    });
+    return invoice;
+  }
+
   const token = await fbrTokens.getActiveTokenForCompany(companyId, invoice.environment);
   const payload = buildFbrPayload(invoice, items);
   const fromStatus = invoice.status;
@@ -564,17 +581,17 @@ export const submitInvoice = async (
     const response =
       mode === 'post'
         ? await fbrClient.postInvoice({
-            token,
-            environment: invoice.environment,
-            payload,
-            ctx: { companyId, userId, invoiceId: invoice.id },
-          })
+          token,
+          environment: invoice.environment,
+          payload,
+          ctx: { companyId, userId, invoiceId: invoice.id },
+        })
         : await fbrClient.validateInvoice({
-            token,
-            environment: invoice.environment,
-            payload,
-            ctx: { companyId, userId, invoiceId: invoice.id },
-          });
+          token,
+          environment: invoice.environment,
+          payload,
+          ctx: { companyId, userId, invoiceId: invoice.id },
+        });
 
     await applyResponseToInvoice(invoice, items, response, mode);
     await logEvent(invoice.id, mode === 'post' ? 'posted' : 'validated', {
