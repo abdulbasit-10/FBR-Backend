@@ -1,6 +1,6 @@
 import { Transaction, Op, WhereOptions, Order } from 'sequelize';
 import { randomUUID } from 'crypto';
-import { Company, Customer, Invoice, InvoiceItem, InvoiceLog, sequelize } from '../models';
+import { Company, Customer, Invoice, InvoiceItem, InvoiceLog, User, sequelize } from '../models';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/AppError';
 import logger from '../utils/logger';
 import * as fbrClient from './fbr-client.service';
@@ -339,7 +339,10 @@ export const listInvoices = async (companyId: number, q: ListInvoicesQuery) => {
     order,
     limit,
     offset,
-    include: [{ model: Customer, as: 'customer', attributes: ['id', 'businessName', 'ntnCnic'] }],
+    include: [
+      { model: Customer, as: 'customer', attributes: ['id', 'businessName', 'ntnCnic'] },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
+    ],
   });
 
   return {
