@@ -50,6 +50,13 @@ const invoiceRefNoField = Joi.string()
       'invoiceRefNo must be 22 digits (NTN case) or 28 digits (CNIC case)',
   });
 
+// In FBR_MOCK_MODE, posted invoices carry a readable "SI-####" number instead of a
+// real FBR-issued digit string, so relax the strict digit-length check for Debit Notes.
+const debitNoteRefField =
+  process.env.FBR_MOCK_MODE === 'true'
+    ? Joi.string().trim().max(50).required()
+    : invoiceRefNoField.required();
+
 export const createInvoiceSchema = Joi.object({
   customerId: Joi.number().integer().positive().required(),
   invoiceType: Joi.string().valid('Sale Invoice', 'Debit Note').default('Sale Invoice'),
@@ -61,7 +68,7 @@ export const createInvoiceSchema = Joi.object({
   environment: Joi.string().valid('sandbox', 'production').default('sandbox'),
   invoiceRefNo: Joi.when('invoiceType', {
     is: 'Debit Note',
-    then: invoiceRefNoField.required(),
+    then: debitNoteRefField,
     otherwise: Joi.string().trim().max(50).allow(null, '').optional(),
   }),
   scenarioId: Joi.when('environment', {
