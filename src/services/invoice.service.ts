@@ -58,6 +58,7 @@ export interface ListInvoicesQuery {
   page?: number;
   limit?: number;
   status?: 'draft' | 'validated' | 'posted' | 'failed' | 'cancelled';
+  invoiceType?: 'Sale Invoice' | 'Debit Note';
   customerId?: number;
   from?: Date | string;
   to?: Date | string;
@@ -315,6 +316,7 @@ export const listInvoices = async (companyId: number, q: ListInvoicesQuery) => {
 
   const where: WhereOptions = { companyId };
   if (q.status) (where as Record<string, unknown>).status = q.status;
+  if (q.invoiceType) (where as Record<string, unknown>).invoiceType = q.invoiceType;
   if (q.customerId) (where as Record<string, unknown>).customerId = q.customerId;
   if (q.from || q.to) {
     const range: Record<symbol, unknown> = {};
@@ -561,8 +563,9 @@ export const submitInvoice = async (
 
   // Skip real FBR call when FBR_MOCK_MODE=true (testing without credentials)
   if (process.env.FBR_MOCK_MODE === 'true') {
-    // Use the same SI-#### numbering as everywhere else — no "MOCK-" noise in the invoice list
-    const mockNo = `SI-${String(invoice.id).padStart(4, '0')}`;
+    // Prefix by document type so Debit Notes (returns) are visually distinct from Sale Invoices.
+    const mockPrefix = invoice.invoiceType === 'Debit Note' ? 'DN' : 'SI';
+    const mockNo = `${mockPrefix}-${String(invoice.id).padStart(4, '0')}`;
     invoice.status = mode === 'post' ? 'posted' : 'validated';
     invoice.fbrInvoiceNumber = mode === 'post' ? mockNo : null;
     invoice.fbrStatus = 'Success';
