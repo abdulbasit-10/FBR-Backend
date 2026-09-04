@@ -6,13 +6,16 @@ import {
   PurchaseItem,
   Customer,
   Vendor,
+  InventoryAdjustment,
+  InventoryAdjustmentItem,
+  Product,
 } from '../models';
 
 export interface ItemLedgerRow {
   documentNo: string;
   documentDate: string;
   postingDate: string | null;
-  documentType: 'Sales Invoice' | 'Debit Note' | 'Purchase Invoice' | 'Purchase Return';
+  documentType: 'Sales Invoice' | 'Debit Note' | 'Purchase Invoice' | 'Purchase Return' | 'Inventory Adjustment';
   itemNo: number | null;
   hsCode: string;
   itemName: string;
@@ -26,7 +29,7 @@ export interface ItemLedgerQuery {
   from?: string;
   to?: string;
   productId?: number;
-  docType?: 'Sales Invoice' | 'Debit Note' | 'Purchase Invoice' | 'Purchase Return';
+  docType?: 'Sales Invoice' | 'Debit Note' | 'Purchase Invoice' | 'Purchase Return' | 'Inventory Adjustment';
   search?: string;
 }
 
@@ -145,6 +148,54 @@ export const getItemLedger = async (
         quantity: Number(it.quantity),
         uom: it.uom,
         unitCost: Number(it.unitPrice ?? 0),
+        unitPrice: 0,
+      });
+    }
+  }
+
+  // Inventory Adjustment side (inventory_adjustments + inventory_adjustment_items)
+  if (!q.docType || q.docType === 'Inventory Adjustment') {
+    const adjustmentWhere: Record<string, unknown> = { companyId, status: 'posted' };
+    if (q.from || q.to) adjustmentWhere.docDate = dateFilter;
+
+    const adjustmentItemWhere: Record<string, unknown> = {};
+    if (q.productId) adjustmentItemWhere.productId = q.productId;
+    if (q.search) {
+      adjustmentItemWhere[Op.or as unknown as string] = [
+        { productDescription: { [Op.like]: `%${q.search}%` } },
+      ];
+    }
+
+    const items = await InventoryAdjustmentItem.findAll({
+      where: adjustmentItemWhere,
+      include: [
+        {
+          model: InventoryAdjustment,
+          as: 'adjustment',
+          where: adjustmentWhere,
+          required: true,
+          attributes: ['adjustmentNo', 'docDate', 'postingDate', 'id'],
+        },
+        { model: Product, as: 'product', attributes: ['hsCode'] },
+      ],
+    });
+
+    for (const it of items) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adj = (it as any).adjustment as InventoryAdjustment;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const product = (it as any).product as Product | null;
+      rows.push({
+        documentNo: adj.adjustmentNo ?? `IA-${String(adj.id).padStart(4, '0')}`,
+        documentDate: String(adj.docDate),
+        postingDate: adj.postingDate ? String(adj.postingDate) : null,
+        documentType: 'Inventory Adjustment',
+        itemNo: it.productId ?? null,
+        hsCode: product?.hsCode ?? '',
+        itemName: it.productDescription,
+        quantity: Number(it.quantity),
+        uom: it.uom,
+        unitCost: Number(it.unitCost ?? 0),
         unitPrice: 0,
       });
     }
