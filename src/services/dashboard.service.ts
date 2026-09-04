@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { Invoice, sequelize } from '../models';
+import { Invoice, Purchase, InventoryAdjustment, sequelize } from '../models';
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
@@ -96,8 +96,77 @@ export const getDashboard = async (companyId: number) => {
     byStatus[r.status] = { count: Number(r.count), sum: Number(r.sum) };
   }
 
-  const totalCount = Object.values(byStatus).reduce((a, s) => a + s.count, 0);
   const totalSales = Object.values(byStatus).reduce((a, s) => a + s.sum, 0);
+
+  // ---- Doc counts (Sales/Purchase Invoices & Returns, Inventory Adjustments) ----
+  const toCounts = (rows: { type: string; status: string; count: string }[], type: string) => {
+    const filtered = rows.filter((r) => r.type === type);
+    const total = filtered.reduce((a, r) => a + Number(r.count), 0);
+    const posted = filtered.find((r) => r.status === 'posted');
+    return {
+      total,
+      posted: Number(posted?.count ?? 0),
+      unposted: total - Number(posted?.count ?? 0) - filtered.filter((r) => r.status === 'cancelled').reduce((a, r) => a + Number(r.count), 0),
+    };
+  };
+
+  const [invoiceTypeRows, purchaseTypeRows, adjustmentRows] = await Promise.all([
+    Invoice.findAll({
+      attributes: [
+        ['invoice_type', 'type'],
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: { companyId },
+      group: ['invoice_type', 'status'],
+      raw: true,
+    }),
+    Purchase.findAll({
+      attributes: [
+        ['purchase_type', 'type'],
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: { companyId },
+      group: ['purchase_type', 'status'],
+      raw: true,
+    }),
+    InventoryAdjustment.findAll({
+      attributes: [
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: { companyId },
+      group: ['status'],
+      raw: true,
+    }),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoiceTypeCounts = invoiceTypeRows as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const purchaseTypeCounts = purchaseTypeRows as any[];
+
+  const adjustmentCounts = adjustmentRows as unknown as { status: string; count: string }[];
+  const adjustmentTotal = adjustmentCounts.reduce((a, r) => a + Number(r.count), 0);
+  const adjustmentPosted = Number(
+    adjustmentCounts.find((r) => r.status === 'posted')?.count ?? 0,
+  );
+  const adjustmentCancelled = adjustmentCounts
+    .filter((r) => r.status === 'cancelled')
+    .reduce((a, r) => a + Number(r.count), 0);
+
+  const docCounts = {
+    salesInvoices: toCounts(invoiceTypeCounts, 'Sale Invoice'),
+    salesReturns: toCounts(invoiceTypeCounts, 'Debit Note'),
+    purchaseInvoices: toCounts(purchaseTypeCounts, 'Purchase Invoice'),
+    purchaseReturns: toCounts(purchaseTypeCounts, 'Purchase Return'),
+    inventoryAdjustments: {
+      total: adjustmentTotal,
+      posted: adjustmentPosted,
+      unposted: adjustmentTotal - adjustmentPosted - adjustmentCancelled,
+    },
+  };
 
   // ---- Monthly Sales chart (last 12 months) ----
   const monthly = await Invoice.findAll({
@@ -115,6 +184,37 @@ export const getDashboard = async (companyId: number) => {
     raw: true,
   });
 
+  // ---- Monthly Activity chart (all doc types, last 12 months) ----
+  const [monthlyPurchases, monthlyAdjustments] = await Promise.all([
+    Purchase.findAll({
+      attributes: [
+        [sequelize.fn('DATE_FORMAT', sequelize.col('doc_date'), '%Y-%m'), 'month'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: { companyId, docDate: { [Op.gte]: monthlyWindow } },
+      group: ['month'],
+      raw: true,
+    }),
+    InventoryAdjustment.findAll({
+      attributes: [
+        [sequelize.fn('DATE_FORMAT', sequelize.col('doc_date'), '%Y-%m'), 'month'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: { companyId, docDate: { [Op.gte]: monthlyWindow } },
+      group: ['month'],
+      raw: true,
+    }),
+  ]);
+
+  const activityByMonth: Record<string, number> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of [...(monthly as any[]), ...(monthlyPurchases as any[]), ...(monthlyAdjustments as any[])]) {
+    activityByMonth[r.month] = (activityByMonth[r.month] ?? 0) + Number(r.count);
+  }
+  const monthlyActivity = Object.entries(activityByMonth)
+    .sort(([a], [b]) => (a > b ? 1 : -1))
+    .map(([month, count]) => ({ month, count }));
+
   // ---- Recent invoices ----
   const recentInvoices = await Invoice.findAll({
     where: { companyId },
@@ -124,10 +224,12 @@ export const getDashboard = async (companyId: number) => {
 
   return {
     cards: {
-      totalInvoices: totalCount,
-      acceptedInvoices: byStatus['posted']?.count ?? 0,
-      pendingInvoices: (byStatus['draft']?.count ?? 0) + (byStatus['validated']?.count ?? 0),
-      rejectedInvoices: byStatus['failed']?.count ?? 0,
+      totalInvoices: docCounts.salesInvoices.total,
+      acceptedInvoices: docCounts.salesInvoices.posted,
+      pendingInvoices: docCounts.salesInvoices.unposted,
+      rejectedInvoices: invoiceTypeCounts
+        .filter((r) => r.type === 'Sale Invoice' && r.status === 'failed')
+        .reduce((a, r) => a + Number(r.count), 0),
       totalSales,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       todaySales: Number((todaySalesRow as any)?.sum ?? 0),
@@ -137,9 +239,15 @@ export const getDashboard = async (companyId: number) => {
       monthSales: Number((monthSalesRow as any)?.sum ?? 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       monthCount: Number((monthSalesRow as any)?.count ?? 0),
+      docCounts,
+      workload: {
+        posted: Object.values(docCounts).reduce((a, d) => a + d.posted, 0),
+        unposted: Object.values(docCounts).reduce((a, d) => a + d.unposted, 0),
+      },
     },
     charts: {
       monthlySales: monthly,
+      monthlyActivity,
       invoiceStatus: Object.entries(byStatus).map(([status, v]) => ({
         status,
         count: v.count,
