@@ -17,6 +17,7 @@ export interface SupportTicketAttributes {
   priority: SupportPriority;
   status: SupportStatus;
   resolvedAt: Date | null;
+  attachmentUrl: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   deletedAt?: Date | null;
@@ -32,12 +33,12 @@ export type SupportTicketCreationAttributes = Optional<
   | 'priority'
   | 'status'
   | 'resolvedAt'
+  | 'attachmentUrl'
 >;
 
 export class SupportTicket
   extends Model<SupportTicketAttributes, SupportTicketCreationAttributes>
-  implements SupportTicketAttributes
-{
+  implements SupportTicketAttributes {
   declare id: number;
   declare uuid: string;
   declare companyId: number;
@@ -49,6 +50,7 @@ export class SupportTicket
   declare priority: SupportPriority;
   declare status: SupportStatus;
   declare resolvedAt: Date | null;
+  declare attachmentUrl: string | null;
   declare readonly createdAt: Date;
   declare readonly updatedAt: Date;
   declare readonly deletedAt: Date | null;
@@ -80,6 +82,7 @@ SupportTicket.init(
       defaultValue: 'Open',
     },
     resolvedAt: { type: DataTypes.DATE, allowNull: true, field: 'resolved_at' },
+    attachmentUrl: { type: DataTypes.STRING(500), allowNull: true, field: 'attachment_url' },
   },
   {
     sequelize,
