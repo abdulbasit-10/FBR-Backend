@@ -1,6 +1,11 @@
 import { Op, WhereOptions } from 'sequelize';
-import { ApiLog } from '../models';
+import { ApiLog, Company, User } from '../models';
 import { NotFoundError } from '../utils/AppError';
+
+const LOG_INCLUDES = [
+  { model: Company, as: 'company', attributes: ['id', 'name'] },
+  { model: User, as: 'user', attributes: ['id', 'name', 'email'] },
+];
 import {
   PaginationParams,
   PaginatedResult,
@@ -34,6 +39,7 @@ export const listApiLogs = async (f: ApiLogFilters): Promise<PaginatedResult<Api
 
   const { rows, count } = await ApiLog.findAndCountAll({
     where,
+    include: LOG_INCLUDES,
     order: [['created_at', 'DESC']],
     limit,
     offset,
@@ -42,7 +48,7 @@ export const listApiLogs = async (f: ApiLogFilters): Promise<PaginatedResult<Api
 };
 
 export const getApiLog = async (uuid: string): Promise<ApiLog> => {
-  const log = await ApiLog.findOne({ where: { uuid } });
+  const log = await ApiLog.findOne({ where: { uuid }, include: LOG_INCLUDES });
   if (!log) throw new NotFoundError('Log entry not found');
   return log;
 };

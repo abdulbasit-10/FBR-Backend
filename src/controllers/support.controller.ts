@@ -3,7 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import * as svc from '../services/support.service';
-import { ForbiddenError, UnauthorizedError } from '../utils/AppError';
+import { ForbiddenError, UnauthorizedError, BadRequestError } from '../utils/AppError';
 
 const requireUser = (req: Request) => {
   if (!req.user) throw new UnauthorizedError();
@@ -37,4 +37,12 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   const { companyId } = requireUser(req);
   await svc.deleteTicket(req.params.uuid, companyId);
   return sendSuccess(res, null, 'Ticket deleted');
+});
+
+export const uploadAttachment = asyncHandler(async (req: Request, res: Response) => {
+  const { companyId } = requireUser(req);
+  if (!req.file) throw new BadRequestError('No file uploaded');
+  const attachmentUrl = `/uploads/support/${req.file.filename}`;
+  const t = await svc.attachFile(req.params.uuid, companyId, attachmentUrl);
+  return sendSuccess(res, t, 'Attachment uploaded');
 });

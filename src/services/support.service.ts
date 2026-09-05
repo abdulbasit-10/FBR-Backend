@@ -105,3 +105,14 @@ export const deleteTicket = async (uuid: string, companyId: number): Promise<voi
   const t = await getTicketByUuid(uuid, companyId);
   await t.destroy();
 };
+
+export const attachFile = async (
+  uuid: string,
+  companyId: number,
+  attachmentUrl: string,
+): Promise<SupportTicket> => {
+  const t = await getTicketByUuid(uuid, companyId);
+  t.attachmentUrl = attachmentUrl;
+  await t.save();
+  return t;
+};
