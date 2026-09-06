@@ -13,8 +13,10 @@ const SENSITIVE_BODY_KEYS = new Set([
   'accesstoken',
 ]);
 
-const redact = <T>(input: T): T => {
+const redact = <T>(input: T, seen = new WeakSet<object>()): T => {
   if (!input || typeof input !== 'object') return input;
+  if (seen.has(input as object)) return input; // guard against circular refs
+  seen.add(input as object);
   const output: Record<string, unknown> = Array.isArray(input)
     ? ([...(input as unknown[])] as unknown as Record<string, unknown>)
     : { ...(input as Record<string, unknown>) };
@@ -22,7 +24,7 @@ const redact = <T>(input: T): T => {
     if (SENSITIVE_BODY_KEYS.has(k.toLowerCase())) {
       output[k] = '***';
     } else if (typeof output[k] === 'object' && output[k] !== null) {
-      output[k] = redact(output[k]);
+      output[k] = redact(output[k], seen);
     }
   }
   return output as T;
@@ -53,7 +55,15 @@ export const apiLogger = (req: Request, res: Response, next: NextFunction): void
   let responseBody: unknown = null;
   const originalJson = res.json.bind(res);
   res.json = ((body: unknown) => {
-    responseBody = body;
+    // `body` may contain live Sequelize Model instances (e.g. included associations),
+    // whose internal bookkeeping can be circular and blow the stack in `redact()`.
+    // Round-trip through JSON first — this invokes each model's `toJSON()` and yields
+    // a safe plain snapshot identical to what's actually sent over the wire.
+    try {
+      responseBody = JSON.parse(JSON.stringify(body));
+    } catch {
+      responseBody = null;
+    }
     return originalJson(body);
   }) as Response['json'];
 
