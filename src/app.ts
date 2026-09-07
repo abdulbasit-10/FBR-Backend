@@ -11,6 +11,7 @@ import config from './config';
 import { swaggerSpec } from './config/swagger';
 import { httpLogger } from './middlewares/httpLogger';
 import { apiLogger } from './middlewares/apiLogger';
+import { optionalAuthenticate } from './middlewares/authenticate';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 import { sendSuccess } from './utils/apiResponse';
 import routes from './routes';
@@ -36,16 +37,34 @@ app.use(httpLogger);
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // ---------- Rate limiting ----------
-app.use(
-  config.apiPrefix,
-  rateLimit({
-    windowMs: config.rateLimit.windowMs,
-    max: config.rateLimit.max,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, message: 'Too many requests, please try again later.' },
-  }),
-);
+// Attach req.user (if a valid token is present) so limits below can be keyed per-user
+// instead of per-IP — otherwise everyone behind the same office/NAT IP shares one budget.
+app.use(optionalAuthenticate);
+
+const rateLimitKey = (req: Request): string => req.user?.id?.toString() ?? req.ip ?? 'anonymous';
+
+// GETs (lists, dropdowns, polling) are far more frequent than mutations in this UI.
+const readLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.readMax,
+  keyGenerator: rateLimitKey,
+  skip: (req) => req.method !== 'GET',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
+
+const writeLimiter = rateLimit({
+  windowMs: config.rateLimit.windowMs,
+  max: config.rateLimit.writeMax,
+  keyGenerator: rateLimitKey,
+  skip: (req) => req.method === 'GET',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
+
+app.use(config.apiPrefix, readLimiter, writeLimiter);
 
 // ---------- Inbound API audit log (Module 11) ----------
 app.use(apiLogger);

@@ -66,7 +66,8 @@ interface AppConfig {
   };
   rateLimit: {
     windowMs: number;
-    max: number;
+    readMax: number;
+    writeMax: number;
   };
   log: {
     level: string;
@@ -160,7 +161,10 @@ const config: AppConfig = {
 
   rateLimit: {
     windowMs: toInt(process.env.RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
-    max: toInt(process.env.RATE_LIMIT_MAX, 100),
+    // Keyed per-user (see app.ts), so these are per-user ceilings, not per-IP.
+    // GETs (lists, dropdowns, polling) are far more frequent than mutations in this UI.
+    readMax: toInt(process.env.RATE_LIMIT_READ_MAX, 600),
+    writeMax: toInt(process.env.RATE_LIMIT_WRITE_MAX, 150),
   },
 
   log: {
