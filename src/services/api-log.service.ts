@@ -47,8 +47,10 @@ export const listApiLogs = async (f: ApiLogFilters): Promise<PaginatedResult<Api
   return { rows, meta: paginationMeta(page, limit, count) };
 };
 
-export const getApiLog = async (uuid: string): Promise<ApiLog> => {
-  const log = await ApiLog.findOne({ where: { uuid }, include: LOG_INCLUDES });
+export const getApiLog = async (uuid: string, companyId?: number | null): Promise<ApiLog> => {
+  const where: Record<string, unknown> = { uuid };
+  if (companyId !== undefined) where.companyId = companyId;
+  const log = await ApiLog.findOne({ where, include: LOG_INCLUDES });
   if (!log) throw new NotFoundError('Log entry not found');
   return log;
 };
