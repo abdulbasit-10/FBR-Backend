@@ -75,6 +75,9 @@ export const listAdjustments = async (companyId: number, q: ListAdjustmentsQuery
   const order: Order = [
     [q.sortBy ?? 'doc_date', (q.sortDir ?? 'DESC').toUpperCase() as 'ASC' | 'DESC'],
   ];
+  // Tiebreaker so rows sharing the same primary sort value (e.g. same doc_date)
+  // still come out newest-created-first instead of in arbitrary storage order.
+  if ((q.sortBy ?? 'doc_date') !== 'id') order.push(['id', 'DESC']);
 
   const { rows, count } = await InventoryAdjustment.findAndCountAll({
     where,

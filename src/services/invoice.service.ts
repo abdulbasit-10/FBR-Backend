@@ -335,6 +335,9 @@ export const listInvoices = async (companyId: number, q: ListInvoicesQuery) => {
   const order: Order = [
     [q.sortBy ?? 'invoice_date', (q.sortDir ?? 'DESC').toUpperCase() as 'ASC' | 'DESC'],
   ];
+  // Tiebreaker so rows sharing the same primary sort value (e.g. same invoice_date)
+  // still come out newest-created-first instead of in arbitrary storage order.
+  if ((q.sortBy ?? 'invoice_date') !== 'id') order.push(['id', 'DESC']);
 
   const { rows, count } = await Invoice.findAndCountAll({
     where,
