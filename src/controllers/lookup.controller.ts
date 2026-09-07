@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
-import { BadRequestError } from '../utils/AppError';
+import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/AppError';
 import * as lookup from '../services/lookup.service';
+
+const companyIdOf = (req: Request): number => {
+  if (!req.user) throw new UnauthorizedError();
+  if (!req.user.companyId) throw new ForbiddenError('No company linked to account');
+  return req.user.companyId;
+};
 
 export const provinces = asyncHandler(async (_req: Request, res: Response) =>
   sendSuccess(res, await lookup.listProvinces()),
@@ -32,7 +38,25 @@ export const rates = asyncHandler(async (_req: Request, res: Response) =>
 export const registrationType = asyncHandler(async (req: Request, res: Response) => {
   const registrationNo = (req.query.registrationNo as string | undefined)?.trim();
   if (!registrationNo) throw new BadRequestError('registrationNo is required');
-  const data = await lookup.getRegistrationType(registrationNo);
+  const data = await lookup.getRegistrationTypeForCompany(companyIdOf(req), registrationNo);
+  return sendSuccess(res, data);
+});
+
+/** GET /lookup/active-taxpayer-status?regno=...&date=... — proxies FBR STATL (§5.11) */
+export const activeTaxpayerStatus = asyncHandler(async (req: Request, res: Response) => {
+  const regno = (req.query.regno as string | undefined)?.trim();
+  if (!regno) throw new BadRequestError('regno is required');
+  const date = (req.query.date as string | undefined)?.trim() || new Date().toISOString().slice(0, 10);
+  const data = await lookup.getActiveTaxpayerStatusForCompany(companyIdOf(req), regno, date);
+  return sendSuccess(res, data);
+});
+
+/** GET /lookup/verify-registration?regno=...&date=... — combined Get_Reg_Type + STATL check */
+export const verifyRegistration = asyncHandler(async (req: Request, res: Response) => {
+  const regno = (req.query.regno as string | undefined)?.trim();
+  if (!regno) throw new BadRequestError('regno is required');
+  const date = (req.query.date as string | undefined)?.trim() || undefined;
+  const data = await lookup.verifyRegistration(companyIdOf(req), regno, date);
   return sendSuccess(res, data);
 });
 

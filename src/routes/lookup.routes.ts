@@ -18,6 +18,8 @@ router.get('/rates', ctrl.rates);
 
 // Live proxy — no cache
 router.get('/registration-type', ctrl.registrationType);
+router.get('/active-taxpayer-status', ctrl.activeTaxpayerStatus);
+router.get('/verify-registration', ctrl.verifyRegistration);
 
 // Sync operations (admin)
 router.post('/sync', authorize('reference.sync'), ctrl.syncAll);

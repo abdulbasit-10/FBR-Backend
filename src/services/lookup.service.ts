@@ -1,5 +1,6 @@
 import config from '../config';
 import {
+  Company,
   FbrProvince,
   FbrDocType,
   FbrHsCode,
@@ -9,7 +10,9 @@ import {
   FbrRate,
 } from '../models';
 import logger from '../utils/logger';
+import { NotFoundError } from '../utils/AppError';
 import * as fbr from './fbr-client.service';
+import * as fbrTokens from './fbr-token.service';
 
 /**
  * Lookup / Reference module.
@@ -54,6 +57,14 @@ export interface RegTypeResult {
   message?: string;
 }
 
+/** Like the /postinvoicedata calls, STATL & Get_Reg_Type require the company's FBR bearer token. */
+const resolveCompanyToken = async (companyId: number): Promise<string> => {
+  const company = await Company.findByPk(companyId);
+  if (!company) throw new NotFoundError('Company not found');
+  const environment = company.fbrEnvironment === 'production' ? 'production' : 'sandbox';
+  return fbrTokens.getActiveTokenForCompany(companyId, environment);
+};
+
 /** POST /dist/v1/Get_Reg_Type — returns Registered/Unregistered for an NTN/CNIC */
 export const getRegistrationType = async (
   registrationNo: string,
@@ -64,6 +75,57 @@ export const getRegistrationType = async (
     { Registration_No: registrationNo },
     token,
   );
+};
+
+/** Get_Reg_Type for a given company — resolves the company's active FBR token first. */
+export const getRegistrationTypeForCompany = async (
+  companyId: number,
+  registrationNo: string,
+): Promise<RegTypeResult> => {
+  const token = await resolveCompanyToken(companyId);
+  return getRegistrationType(registrationNo, token);
+};
+
+// ---------- Active Taxpayer List lookup (STATL, §5.11 — proxied, no cache) ----------
+
+export interface StatlResult {
+  // FBR's own sample response uses a literal space in this key, not a typo — kept verbatim.
+  'status code'?: string;
+  status?: string;
+}
+
+/** POST /dist/v1/statl — returns Active/In-Active taxpayer status for an NTN/CNIC as of a date */
+export const getActiveTaxpayerStatus = async (
+  regno: string,
+  date: string,
+  token?: string,
+): Promise<StatlResult> => {
+  return fbr.postUtility<StatlResult>(config.fbr.endpoints.statl, { regno, date }, token);
+};
+
+/** STATL for a given company — resolves the company's active FBR token first. */
+export const getActiveTaxpayerStatusForCompany = async (
+  companyId: number,
+  regno: string,
+  date: string,
+): Promise<StatlResult> => {
+  const token = await resolveCompanyToken(companyId);
+  return getActiveTaxpayerStatus(regno, date, token);
+};
+
+/** Combined check used by "Verify with FBR" — registration type + active-taxpayer status. */
+export const verifyRegistration = async (
+  companyId: number,
+  regno: string,
+  date?: string,
+): Promise<{ registrationType: RegTypeResult; taxpayerStatus: StatlResult }> => {
+  const token = await resolveCompanyToken(companyId);
+  const asOf = date ?? new Date().toISOString().slice(0, 10);
+  const [registrationType, taxpayerStatus] = await Promise.all([
+    getRegistrationType(regno, token),
+    getActiveTaxpayerStatus(regno, asOf, token),
+  ]);
+  return { registrationType, taxpayerStatus };
 };
 
 // ---------- Sync jobs (populate local cache from FBR) ----------
