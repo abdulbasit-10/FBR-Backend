@@ -187,18 +187,21 @@ export const validateInvoice = async (params: {
   }
 };
 
-/** GET a reference-data endpoint. No token required for /pdi endpoints. */
+/** GET a reference-data endpoint. FBR's gateway rejects these without a Bearer token too. */
 export const fetchReference = async <T = unknown>(
   path: string,
   params?: Record<string, string | number>,
+  token?: string,
 ): Promise<T> => {
   const url = path.startsWith('http') ? path : `${config.fbr.baseUrl}${path}`;
   const started = Date.now();
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
   try {
     const res = await axios.get(url, {
       params,
       timeout: config.fbr.timeoutMs,
-      headers: { Accept: 'application/json' },
+      headers,
     });
     await persistOutboundLog({
       method: 'GET',

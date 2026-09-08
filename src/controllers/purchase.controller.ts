@@ -36,8 +36,8 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const post = asyncHandler(async (req: Request, res: Response) => {
-  const { companyId } = requireUser(req);
-  const purchase = await purchaseService.postPurchase(req.params.uuid, companyId);
+  const { companyId, userId } = requireUser(req);
+  const purchase = await purchaseService.postPurchase(req.params.uuid, companyId, userId);
   return sendSuccess(res, purchase, 'Purchase posted');
 });
 

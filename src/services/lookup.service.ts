@@ -1,5 +1,6 @@
 import config from '../config';
 import {
+  Company,
   FbrProvince,
   FbrDocType,
   FbrHsCode,
@@ -9,7 +10,9 @@ import {
   FbrRate,
 } from '../models';
 import logger from '../utils/logger';
+import { NotFoundError } from '../utils/AppError';
 import * as fbr from './fbr-client.service';
+import * as fbrTokens from './fbr-token.service';
 
 /**
  * Lookup / Reference module.
@@ -54,6 +57,14 @@ export interface RegTypeResult {
   message?: string;
 }
 
+/** Like the /postinvoicedata calls, STATL & Get_Reg_Type require the company's FBR bearer token. */
+export const resolveCompanyToken = async (companyId: number): Promise<string> => {
+  const company = await Company.findByPk(companyId);
+  if (!company) throw new NotFoundError('Company not found');
+  const environment = company.fbrEnvironment === 'production' ? 'production' : 'sandbox';
+  return fbrTokens.getActiveTokenForCompany(companyId, environment);
+};
+
 /** POST /dist/v1/Get_Reg_Type — returns Registered/Unregistered for an NTN/CNIC */
 export const getRegistrationType = async (
   registrationNo: string,
@@ -64,6 +75,57 @@ export const getRegistrationType = async (
     { Registration_No: registrationNo },
     token,
   );
+};
+
+/** Get_Reg_Type for a given company — resolves the company's active FBR token first. */
+export const getRegistrationTypeForCompany = async (
+  companyId: number,
+  registrationNo: string,
+): Promise<RegTypeResult> => {
+  const token = await resolveCompanyToken(companyId);
+  return getRegistrationType(registrationNo, token);
+};
+
+// ---------- Active Taxpayer List lookup (STATL, §5.11 — proxied, no cache) ----------
+
+export interface StatlResult {
+  // FBR's own sample response uses a literal space in this key, not a typo — kept verbatim.
+  'status code'?: string;
+  status?: string;
+}
+
+/** POST /dist/v1/statl — returns Active/In-Active taxpayer status for an NTN/CNIC as of a date */
+export const getActiveTaxpayerStatus = async (
+  regno: string,
+  date: string,
+  token?: string,
+): Promise<StatlResult> => {
+  return fbr.postUtility<StatlResult>(config.fbr.endpoints.statl, { regno, date }, token);
+};
+
+/** STATL for a given company — resolves the company's active FBR token first. */
+export const getActiveTaxpayerStatusForCompany = async (
+  companyId: number,
+  regno: string,
+  date: string,
+): Promise<StatlResult> => {
+  const token = await resolveCompanyToken(companyId);
+  return getActiveTaxpayerStatus(regno, date, token);
+};
+
+/** Combined check used by "Verify with FBR" — registration type + active-taxpayer status. */
+export const verifyRegistration = async (
+  companyId: number,
+  regno: string,
+  date?: string,
+): Promise<{ registrationType: RegTypeResult; taxpayerStatus: StatlResult }> => {
+  const token = await resolveCompanyToken(companyId);
+  const asOf = date ?? new Date().toISOString().slice(0, 10);
+  const [registrationType, taxpayerStatus] = await Promise.all([
+    getRegistrationType(regno, token),
+    getActiveTaxpayerStatus(regno, asOf, token),
+  ]);
+  return { registrationType, taxpayerStatus };
 };
 
 // ---------- Sync jobs (populate local cache from FBR) ----------
@@ -107,8 +169,8 @@ interface RateDto {
   rateValue?: number | string;
 }
 
-export const syncProvinces = async (): Promise<number> => {
-  const data = await fbr.fetchReference<ProvinceDto[]>(config.fbr.endpoints.provinces);
+export const syncProvinces = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<ProvinceDto[]>(config.fbr.endpoints.provinces, undefined, token);
   const now = new Date();
   await Promise.all(
     data.map((p) =>
@@ -122,8 +184,8 @@ export const syncProvinces = async (): Promise<number> => {
   return data.length;
 };
 
-export const syncDocTypes = async (): Promise<number> => {
-  const data = await fbr.fetchReference<DocTypeDto[]>(config.fbr.endpoints.docType);
+export const syncDocTypes = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<DocTypeDto[]>(config.fbr.endpoints.docType, undefined, token);
   const now = new Date();
   await Promise.all(
     data.map((d) =>
@@ -137,8 +199,8 @@ export const syncDocTypes = async (): Promise<number> => {
   return data.length;
 };
 
-export const syncHsCodes = async (): Promise<number> => {
-  const data = await fbr.fetchReference<HsCodeDto[]>(config.fbr.endpoints.itemDesc);
+export const syncHsCodes = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<HsCodeDto[]>(config.fbr.endpoints.itemDesc, undefined, token);
   const now = new Date();
   const rows = data
     .map((d) => ({
@@ -150,8 +212,8 @@ export const syncHsCodes = async (): Promise<number> => {
   return rows.length;
 };
 
-export const syncUoms = async (): Promise<number> => {
-  const data = await fbr.fetchReference<UomDto[]>(config.fbr.endpoints.uom);
+export const syncUoms = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<UomDto[]>(config.fbr.endpoints.uom, undefined, token);
   const now = new Date();
   const rows = data
     .map((d) => ({
@@ -163,8 +225,8 @@ export const syncUoms = async (): Promise<number> => {
   return rows.length;
 };
 
-export const syncTransactionTypes = async (): Promise<number> => {
-  const data = await fbr.fetchReference<TransTypeDto[]>(config.fbr.endpoints.transType);
+export const syncTransactionTypes = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<TransTypeDto[]>(config.fbr.endpoints.transType, undefined, token);
   const now = new Date();
   const rows = data
     .map((d) => ({
@@ -176,8 +238,8 @@ export const syncTransactionTypes = async (): Promise<number> => {
   return rows.length;
 };
 
-export const syncSros = async (): Promise<number> => {
-  const data = await fbr.fetchReference<SroDto[]>(config.fbr.endpoints.sroItem);
+export const syncSros = async (token?: string): Promise<number> => {
+  const data = await fbr.fetchReference<SroDto[]>(config.fbr.endpoints.sroItem, undefined, token);
   const now = new Date();
   const rows = data
     .map((d) => ({
@@ -193,13 +255,14 @@ export const syncRates = async (
   transTypeId?: number,
   originationSupplier?: number,
   date?: string,
+  token?: string,
 ): Promise<number> => {
   const params: Record<string, string | number> = {};
   if (transTypeId !== undefined) params.transTypeId = transTypeId;
   if (originationSupplier !== undefined) params.originationSupplier = originationSupplier;
   if (date) params.date = date;
 
-  const data = await fbr.fetchReference<RateDto[]>(config.fbr.endpoints.saleTypeToRate, params);
+  const data = await fbr.fetchReference<RateDto[]>(config.fbr.endpoints.saleTypeToRate, params, token);
   const now = new Date();
   const rows = data
     .map((d) => ({
@@ -216,15 +279,16 @@ export const syncRates = async (
 };
 
 /** Run every safe/general sync. Returns counts per module. */
-export const syncAll = async (): Promise<Record<string, number>> => {
+export const syncAll = async (companyId: number): Promise<Record<string, number>> => {
+  const token = await resolveCompanyToken(companyId);
   const counts: Record<string, number> = {};
   const runners: Array<[string, () => Promise<number>]> = [
-    ['provinces', syncProvinces],
-    ['docTypes', syncDocTypes],
-    ['hsCodes', syncHsCodes],
-    ['uoms', syncUoms],
-    ['transactionTypes', syncTransactionTypes],
-    ['sros', syncSros],
+    ['provinces', () => syncProvinces(token)],
+    ['docTypes', () => syncDocTypes(token)],
+    ['hsCodes', () => syncHsCodes(token)],
+    ['uoms', () => syncUoms(token)],
+    ['transactionTypes', () => syncTransactionTypes(token)],
+    ['sros', () => syncSros(token)],
   ];
   for (const [name, fn] of runners) {
     try {
@@ -235,4 +299,43 @@ export const syncAll = async (): Promise<Record<string, number>> => {
     }
   }
   return counts;
+};
+
+// ---------- SRO Schedule (§5.7 — distinct from SRO Item/§5.4, live proxy, no cache) ----------
+
+export interface SroScheduleResult {
+  sroId: number;
+  sroDesc: string;
+}
+
+/**
+ * GET /pdi/v1/SroSchedule — the SRO *schedule* applicable to a given tax rate (rate_id),
+ * NOT the same list as /sroitemcode (Item Serial No, cached in fbr_sros). Per spec §5.7
+ * this depends on rate_id/date/origination_supplier_csv, so it's fetched live, not cached.
+ */
+export const getSroSchedules = async (
+  rateId: number,
+  date?: string,
+  originationSupplier?: number,
+  token?: string,
+): Promise<SroScheduleResult[]> => {
+  const params: Record<string, string | number> = { rate_id: rateId };
+  if (date) params.date = date;
+  if (originationSupplier !== undefined) params.origination_supplier_csv = originationSupplier;
+
+  const data = await fbr.fetchReference<SroDto[]>(config.fbr.endpoints.sroSchedule, params, token);
+  return data
+    .map((d) => ({ sroId: (d.srO_ID ?? d.sroId) as number, sroDesc: (d.srO_DESC ?? d.sroDesc ?? '').trim() }))
+    .filter((r) => Number.isFinite(r.sroId));
+};
+
+/** SRO Schedule for a given company — resolves the company's active FBR token first. */
+export const getSroSchedulesForCompany = async (
+  companyId: number,
+  rateId: number,
+  date?: string,
+  originationSupplier?: number,
+): Promise<SroScheduleResult[]> => {
+  const token = await resolveCompanyToken(companyId);
+  return getSroSchedules(rateId, date, originationSupplier, token);
 };

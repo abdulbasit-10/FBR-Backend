@@ -37,8 +37,15 @@ export const createUser = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const updateUser = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new UnauthorizedError();
+  const body = { ...req.body };
+  // Non-SuperAdmin cannot move a user to another company (or off one) — service also
+  // re-validates this, but stripping it here avoids relying on that alone.
+  if (req.user.roleName !== 'SuperAdmin') {
+    delete body.companyId;
+  }
   const user = await userService.getUserByUuid(req.params.uuid, scope(req));
-  const u = await userService.updateUser(user.id, scope(req), req.body);
+  const u = await userService.updateUser(user.id, scope(req), body);
   return sendSuccess(res, u, 'User updated');
 });
 

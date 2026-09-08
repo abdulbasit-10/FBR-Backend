@@ -6,6 +6,7 @@ import logger from '../utils/logger';
 import * as fbrClient from './fbr-client.service';
 import { FbrInvoiceResponse } from './fbr-client.service';
 import * as fbrTokens from './fbr-token.service';
+import * as notificationService from './notification.service';
 import { Queue } from './queue.service';
 import type { InvoiceAttributes } from '../models/Invoice';
 import type { InvoiceItemCreationAttributes } from '../models/InvoiceItem';
@@ -57,7 +58,7 @@ export interface CreateInvoiceInput {
 export interface ListInvoicesQuery {
   page?: number;
   limit?: number;
-  status?: 'draft' | 'validated' | 'posted' | 'failed' | 'cancelled';
+  status?: 'draft' | 'validated' | 'posted' | 'failed' | 'cancelled' | 'unposted';
   invoiceType?: 'Sale Invoice' | 'Debit Note';
   customerId?: number;
   from?: Date | string;
@@ -315,7 +316,13 @@ export const listInvoices = async (companyId: number, q: ListInvoicesQuery) => {
   const offset = (page - 1) * limit;
 
   const where: WhereOptions = { companyId };
-  if (q.status) (where as Record<string, unknown>).status = q.status;
+  // "unposted" is a virtual filter (not a real status) matching the dashboard's own definition:
+  // anything that hasn't actually been posted to FBR or cancelled (draft/validated/failed).
+  if (q.status === 'unposted') {
+    (where as Record<string, unknown>).status = { [Op.notIn]: ['posted', 'cancelled'] };
+  } else if (q.status) {
+    (where as Record<string, unknown>).status = q.status;
+  }
   if (q.invoiceType) (where as Record<string, unknown>).invoiceType = q.invoiceType;
   if (q.customerId) (where as Record<string, unknown>).customerId = q.customerId;
   if (q.from || q.to) {
@@ -579,6 +586,14 @@ export const submitInvoice = async (
       userId, fromStatus: 'draft', toStatus: invoice.status,
       message: `Mock FBR response (FBR_MOCK_MODE=true): ${mockNo}`,
     });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'success',
+      title: mode === 'post' ? 'Invoice posted to FBR' : 'Invoice validated by FBR',
+      message: `${invoice.invoiceType} ${mode === 'post' ? mockNo : `SI-${String(invoice.id).padStart(4, '0')}`} ${mode === 'post' ? 'posted' : 'validated'} successfully.`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
+    });
     return invoice;
   }
 
@@ -609,6 +624,14 @@ export const submitInvoice = async (
       toStatus: invoice.status,
       payload: response as unknown as object,
     });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'success',
+      title: mode === 'post' ? 'Invoice posted to FBR' : 'Invoice validated by FBR',
+      message: `${invoice.invoiceType} ${invoice.fbrInvoiceNumber ?? `SI-${String(invoice.id).padStart(4, '0')}`} ${mode === 'post' ? 'posted' : 'validated'} successfully.`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
+    });
     return invoice;
   } catch (err) {
     const message = (err as Error).message;
@@ -620,6 +643,14 @@ export const submitInvoice = async (
       fromStatus,
       toStatus: 'failed',
       message,
+    });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'error',
+      title: 'FBR submission failed',
+      message: `${invoice.invoiceType} ${invoice.fbrInvoiceNumber ?? `SI-${String(invoice.id).padStart(4, '0')}`} failed to ${mode}: ${message}`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
     });
     throw err;
   }

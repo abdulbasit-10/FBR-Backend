@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import * as invoiceService from '../services/invoice.service';
+import * as scenarioProgressService from '../services/scenario-progress.service';
 import { BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/AppError';
 
 const requireUser = (req: Request) => {
@@ -10,6 +11,13 @@ const requireUser = (req: Request) => {
   if (!req.user.companyId) throw new ForbiddenError('No company linked to account');
   return { companyId: req.user.companyId, userId: req.user.id };
 };
+
+/** GET /invoices/applicable-scenarios — scenario IDs valid for this company's Business Activity/Sector */
+export const applicableScenarios = asyncHandler(async (req: Request, res: Response) => {
+  const { companyId } = requireUser(req);
+  const data = await scenarioProgressService.getApplicableScenarioIds(companyId);
+  return sendSuccess(res, data);
+});
 
 /** GET /invoices */
 export const list = asyncHandler(async (req: Request, res: Response) => {

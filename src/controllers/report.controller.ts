@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import * as reportService from '../services/report.service';
+import * as scenarioProgressService from '../services/scenario-progress.service';
 import { ForbiddenError, UnauthorizedError } from '../utils/AppError';
 
 const companyIdOf = (req: Request): number => {
@@ -42,4 +43,9 @@ export const sales = asyncHandler(async (req: Request, res: Response) =>
       req.query as { from?: string; to?: string; groupBy?: 'customer' | 'product' },
     ),
   ),
+);
+
+/** GET /reports/scenario-progress — FBR sandbox certification checklist (§9/§10) */
+export const scenarioProgress = asyncHandler(async (req: Request, res: Response) =>
+  sendSuccess(res, await scenarioProgressService.getScenarioProgress(companyIdOf(req))),
 );

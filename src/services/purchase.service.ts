@@ -2,6 +2,7 @@ import { Transaction, Op, WhereOptions, Order } from 'sequelize';
 import { randomUUID } from 'crypto';
 import { Purchase, PurchaseItem, Vendor, sequelize } from '../models';
 import { BadRequestError, NotFoundError } from '../utils/AppError';
+import * as notificationService from './notification.service';
 import type { PurchaseCreationAttributes, PurchaseType } from '../models/Purchase';
 import type { PurchaseItemCreationAttributes } from '../models/PurchaseItem';
 
@@ -256,12 +257,26 @@ export const updatePurchase = async (
   return p;
 };
 
-export const postPurchase = async (uuid: string, companyId: number): Promise<Purchase> => {
+export const postPurchase = async (
+  uuid: string,
+  companyId: number,
+  userId?: number,
+): Promise<Purchase> => {
   const p = await getPurchaseByUuid(uuid, companyId);
   if (p.status === 'posted') throw new BadRequestError('Already posted');
   p.status = 'posted';
   p.postedAt = new Date();
   await p.save();
+  if (userId) {
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'success',
+      title: p.purchaseType === 'Purchase Return' ? 'Purchase return posted' : 'Purchase posted',
+      message: `${p.purchaseType} ${p.purchaseNo ?? `PI-${String(p.id).padStart(4, '0')}`} posted successfully.`,
+      link: `/dashboard/transactions/purchase/${p.uuid}`,
+    });
+  }
   return p;
 };
 

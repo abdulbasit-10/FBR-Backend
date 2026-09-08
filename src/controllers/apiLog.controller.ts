@@ -22,6 +22,6 @@ export const errors = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
-  const log = await apiLogService.getApiLog(req.params.uuid);
+  const log = await apiLogService.getApiLog(req.params.uuid, scope(req));
   return sendSuccess(res, log);
 });

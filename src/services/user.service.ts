@@ -98,17 +98,22 @@ export const updateUser = async (
   }
   if (data.name !== undefined) user.name = data.name;
   if (data.phone !== undefined) user.phone = data.phone;
-  if (data.roleId !== undefined) {
+  if (data.roleId !== undefined || data.companyId !== undefined) {
+    const effectiveRoleId = data.roleId !== undefined ? data.roleId : user.roleId;
     const effectiveCompanyId = data.companyId !== undefined ? data.companyId : user.companyId;
-    if (effectiveCompanyId && data.roleId !== user.roleId) {
-      const newRole = await Role.findByPk(data.roleId);
-      if (!newRole) throw new NotFoundError('Role not found');
-      if (newRole.isPlatformRole)
+    if (effectiveRoleId !== user.roleId || effectiveCompanyId !== user.companyId) {
+      const role = await Role.findByPk(effectiveRoleId);
+      if (!role) throw new NotFoundError('Role not found');
+      if (role.isPlatformRole && effectiveCompanyId) {
         throw new ForbiddenError('Platform roles cannot be assigned to company users');
+      }
+      if (!role.isPlatformRole && !effectiveCompanyId) {
+        throw new ForbiddenError('Company users must have a company assigned');
+      }
     }
-    user.roleId = data.roleId;
+    if (data.roleId !== undefined) user.roleId = data.roleId;
+    if (data.companyId !== undefined) user.companyId = data.companyId;
   }
-  if (data.companyId !== undefined) user.companyId = data.companyId;
   if (data.isActive !== undefined) user.isActive = data.isActive;
 
   await user.save();
