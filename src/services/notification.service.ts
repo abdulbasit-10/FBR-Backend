@@ -1,6 +1,8 @@
 import { Op } from 'sequelize';
 import { Notification, NotificationCreationAttributes } from '../models';
+import type { NotificationType } from '../models/Notification';
 import { NotFoundError } from '../utils/AppError';
+import logger from '../utils/logger';
 import {
   PaginationParams,
   PaginatedResult,
@@ -27,6 +29,32 @@ export const listUserNotifications = async (
 
 export const create = async (data: NotificationCreationAttributes): Promise<Notification> =>
   Notification.create(data);
+
+/**
+ * Fire-and-forget notify helper for business events (invoice posted, ticket resolved, etc).
+ * Never throws — a notification failure must not break the calling business flow.
+ */
+export const notify = async (params: {
+  userId: number;
+  companyId?: number | null;
+  type?: NotificationType;
+  title: string;
+  message: string;
+  link?: string | null;
+}): Promise<void> => {
+  try {
+    await create({
+      userId: params.userId,
+      companyId: params.companyId ?? null,
+      type: params.type ?? 'info',
+      title: params.title,
+      message: params.message,
+      link: params.link ?? null,
+    });
+  } catch (err) {
+    logger.warn('Failed to create notification', { err: (err as Error).message });
+  }
+};
 
 export const markAsRead = async (uuid: string, userId: number): Promise<Notification> => {
   const n = await Notification.findOne({ where: { uuid, userId } });

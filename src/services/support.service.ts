@@ -1,6 +1,7 @@
 import { Op, WhereOptions } from 'sequelize';
 import { SupportTicket } from '../models';
 import { NotFoundError } from '../utils/AppError';
+import * as notificationService from './notification.service';
 import {
   PaginationParams,
   PaginatedResult,
@@ -94,10 +95,21 @@ export const updateTicket = async (
   data: UpdateTicketInput,
 ): Promise<SupportTicket> => {
   const t = await getTicketByUuid(uuid, companyId);
+  const fromStatus = t.status;
   if (data.status === 'Resolved' && t.status !== 'Resolved') {
     (data as UpdateTicketInput & { resolvedAt?: Date }).resolvedAt = new Date();
   }
   await t.update(data);
+  if (data.status && (data.status === 'Resolved' || data.status === 'Closed') && data.status !== fromStatus) {
+    await notificationService.notify({
+      userId: t.createdBy,
+      companyId,
+      type: 'success',
+      title: `Ticket ${data.status.toLowerCase()}`,
+      message: `Your ticket ${t.ticketNo} "${t.title}" was marked ${data.status.toLowerCase()}.`,
+      link: `/dashboard/support/${t.uuid}`,
+    });
+  }
   return t;
 };
 

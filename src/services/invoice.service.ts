@@ -6,6 +6,7 @@ import logger from '../utils/logger';
 import * as fbrClient from './fbr-client.service';
 import { FbrInvoiceResponse } from './fbr-client.service';
 import * as fbrTokens from './fbr-token.service';
+import * as notificationService from './notification.service';
 import { Queue } from './queue.service';
 import type { InvoiceAttributes } from '../models/Invoice';
 import type { InvoiceItemCreationAttributes } from '../models/InvoiceItem';
@@ -579,6 +580,14 @@ export const submitInvoice = async (
       userId, fromStatus: 'draft', toStatus: invoice.status,
       message: `Mock FBR response (FBR_MOCK_MODE=true): ${mockNo}`,
     });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'success',
+      title: mode === 'post' ? 'Invoice posted to FBR' : 'Invoice validated by FBR',
+      message: `${invoice.invoiceType} ${mode === 'post' ? mockNo : `SI-${String(invoice.id).padStart(4, '0')}`} ${mode === 'post' ? 'posted' : 'validated'} successfully.`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
+    });
     return invoice;
   }
 
@@ -609,6 +618,14 @@ export const submitInvoice = async (
       toStatus: invoice.status,
       payload: response as unknown as object,
     });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'success',
+      title: mode === 'post' ? 'Invoice posted to FBR' : 'Invoice validated by FBR',
+      message: `${invoice.invoiceType} ${invoice.fbrInvoiceNumber ?? `SI-${String(invoice.id).padStart(4, '0')}`} ${mode === 'post' ? 'posted' : 'validated'} successfully.`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
+    });
     return invoice;
   } catch (err) {
     const message = (err as Error).message;
@@ -620,6 +637,14 @@ export const submitInvoice = async (
       fromStatus,
       toStatus: 'failed',
       message,
+    });
+    await notificationService.notify({
+      userId,
+      companyId,
+      type: 'error',
+      title: 'FBR submission failed',
+      message: `${invoice.invoiceType} ${invoice.fbrInvoiceNumber ?? `SI-${String(invoice.id).padStart(4, '0')}`} failed to ${mode}: ${message}`,
+      link: `/dashboard/transactions/sales/${invoice.uuid}`,
     });
     throw err;
   }
