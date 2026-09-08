@@ -58,7 +58,7 @@ export interface CreateInvoiceInput {
 export interface ListInvoicesQuery {
   page?: number;
   limit?: number;
-  status?: 'draft' | 'validated' | 'posted' | 'failed' | 'cancelled';
+  status?: 'draft' | 'validated' | 'posted' | 'failed' | 'cancelled' | 'unposted';
   invoiceType?: 'Sale Invoice' | 'Debit Note';
   customerId?: number;
   from?: Date | string;
@@ -316,7 +316,13 @@ export const listInvoices = async (companyId: number, q: ListInvoicesQuery) => {
   const offset = (page - 1) * limit;
 
   const where: WhereOptions = { companyId };
-  if (q.status) (where as Record<string, unknown>).status = q.status;
+  // "unposted" is a virtual filter (not a real status) matching the dashboard's own definition:
+  // anything that hasn't actually been posted to FBR or cancelled (draft/validated/failed).
+  if (q.status === 'unposted') {
+    (where as Record<string, unknown>).status = { [Op.notIn]: ['posted', 'cancelled'] };
+  } else if (q.status) {
+    (where as Record<string, unknown>).status = q.status;
+  }
   if (q.invoiceType) (where as Record<string, unknown>).invoiceType = q.invoiceType;
   if (q.customerId) (where as Record<string, unknown>).customerId = q.customerId;
   if (q.from || q.to) {
