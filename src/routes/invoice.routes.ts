@@ -15,6 +15,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', authorize('invoice.read'), validate(invoiceListQuery, 'query'), ctrl.list);
+router.get('/applicable-scenarios', authorize('invoice.create'), ctrl.applicableScenarios);
 router.get('/:uuid', authorize('invoice.read'), ctrl.getOne);
 router.post('/', authorize('invoice.create'), validate(createInvoiceSchema), ctrl.create);
 router.put('/:uuid', authorize('invoice.update'), validate(updateInvoiceSchema), ctrl.update);

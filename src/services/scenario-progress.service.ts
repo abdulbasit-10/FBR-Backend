@@ -24,6 +24,23 @@ export interface ScenarioProgressResult {
 }
 
 /**
+ * Scenario IDs applicable to a company's declared Business Activity + Sector, for the
+ * Sales Invoice "Scenario ID" picker — null means the pairing isn't set/restricted, so
+ * every scenario is offered (matches isScenarioApplicable()'s own fail-open behaviour).
+ */
+export const getApplicableScenarioIds = async (
+    companyId: number,
+): Promise<{ businessActivity: string | null; sector: string | null; scenarioIds: string[] | null }> => {
+    const company = await Company.findByPk(companyId);
+    if (!company) throw new NotFoundError('Company not found');
+    return {
+        businessActivity: company.businessActivity,
+        sector: company.sector,
+        scenarioIds: applicableScenarios(company.businessActivity, company.sector),
+    };
+};
+
+/**
  * FBR sandbox certification checklist: per the "Sandbox to Production" FAQ, a company
  * must post at least one SUCCESSFUL sandbox invoice for every scenario ID applicable to
  * its declared Business Activity + Sector before FBR will issue a Production Token.
