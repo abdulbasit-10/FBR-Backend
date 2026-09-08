@@ -130,6 +130,7 @@ export const listPurchases = async (companyId: number, q: ListPurchasesQuery) =>
     offset,
     include: [
       { model: Vendor, as: 'vendor', attributes: ['id', 'vendorNo', 'businessName', 'ntnCnic'] },
+      { model: Purchase, as: 'originalPurchase', attributes: ['id', 'uuid', 'purchaseNo'] },
     ],
   });
 
@@ -150,6 +151,7 @@ export const getPurchaseByUuid = async (uuid: string, companyId: number): Promis
     include: [
       { model: Vendor, as: 'vendor' },
       { model: PurchaseItem, as: 'items' },
+      { model: Purchase, as: 'originalPurchase', attributes: ['id', 'uuid', 'purchaseNo'] },
     ],
   });
   if (!p) throw new NotFoundError('Purchase not found');
