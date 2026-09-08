@@ -10,5 +10,6 @@ router.get('/daily', authorize('report.view'), ctrl.daily);
 router.get('/monthly', authorize('report.view'), ctrl.monthly);
 router.get('/tax', authorize('report.view'), ctrl.tax);
 router.get('/sales', authorize('report.view'), ctrl.sales);
+router.get('/scenario-progress', authorize('report.view'), ctrl.scenarioProgress);
 
 export default router;

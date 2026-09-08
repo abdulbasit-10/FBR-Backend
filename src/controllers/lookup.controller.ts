@@ -61,43 +61,57 @@ export const verifyRegistration = asyncHandler(async (req: Request, res: Respons
 });
 
 /** POST /lookup/sync — trigger a full reference sync from FBR */
-export const syncAll = asyncHandler(async (_req: Request, res: Response) => {
-  const counts = await lookup.syncAll();
+export const syncAll = asyncHandler(async (req: Request, res: Response) => {
+  const counts = await lookup.syncAll(companyIdOf(req));
   return sendSuccess(res, counts, 'Reference data synced');
 });
 
 /** POST /lookup/sync/:kind — sync one dataset */
 export const syncOne = asyncHandler(async (req: Request, res: Response) => {
   const kind = req.params.kind as string;
+  const token = await lookup.resolveCompanyToken(companyIdOf(req));
   let count = 0;
   switch (kind) {
     case 'provinces':
-      count = await lookup.syncProvinces();
+      count = await lookup.syncProvinces(token);
       break;
     case 'doc-types':
-      count = await lookup.syncDocTypes();
+      count = await lookup.syncDocTypes(token);
       break;
     case 'hs-codes':
-      count = await lookup.syncHsCodes();
+      count = await lookup.syncHsCodes(token);
       break;
     case 'uoms':
-      count = await lookup.syncUoms();
+      count = await lookup.syncUoms(token);
       break;
     case 'transaction-types':
-      count = await lookup.syncTransactionTypes();
+      count = await lookup.syncTransactionTypes(token);
       break;
     case 'sros':
-      count = await lookup.syncSros();
+      count = await lookup.syncSros(token);
       break;
     case 'rates':
       count = await lookup.syncRates(
         req.body?.transTypeId,
         req.body?.originationSupplier,
         req.body?.date,
+        token,
       );
       break;
     default:
       throw new BadRequestError(`Unknown sync kind: ${kind}`);
   }
   return sendSuccess(res, { kind, count }, `${kind} synced`);
+});
+
+/** GET /lookup/sro-schedules?rateId=&date=&originationSupplier= — proxies FBR SroSchedule (§5.7) */
+export const sroSchedules = asyncHandler(async (req: Request, res: Response) => {
+  const rateId = Number(req.query.rateId);
+  if (!Number.isFinite(rateId)) throw new BadRequestError('rateId is required');
+  const date = (req.query.date as string | undefined)?.trim() || undefined;
+  const originationSupplier = req.query.originationSupplier
+    ? Number(req.query.originationSupplier)
+    : undefined;
+  const data = await lookup.getSroSchedulesForCompany(companyIdOf(req), rateId, date, originationSupplier);
+  return sendSuccess(res, data);
 });
