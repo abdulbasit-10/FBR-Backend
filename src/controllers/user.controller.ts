@@ -13,7 +13,12 @@ const scope = (req: Request): number | null | undefined => {
 // ---------- Users ----------
 
 export const listUsers = asyncHandler(async (req: Request, res: Response) => {
-  const companyId = scope(req);
+  // SuperAdmin may optionally filter by an explicit ?companyId= (e.g. "who's the admin for
+  // company X"); non-SuperAdmin is always locked to their own company regardless of query.
+  const isSuperAdmin = req.user?.roleName === 'SuperAdmin';
+  const companyId = isSuperAdmin
+    ? (req.query.companyId ? Number(req.query.companyId) : undefined)
+    : scope(req);
   const params = { ...req.query, companyId } as Record<string, unknown>;
   const result = await userService.listUsers(params);
   return sendSuccess(res, result);
