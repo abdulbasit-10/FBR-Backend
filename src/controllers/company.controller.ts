@@ -71,3 +71,10 @@ export const exportData = asyncHandler(async (req: Request, res: Response) => {
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   return res.send(sql);
 });
+
+/** GET /companies/:uuid/export/size — SuperAdmin only. Byte size of that company's exportable data. */
+export const exportSize = asyncHandler(async (req: Request, res: Response) => {
+  const company = await companyService.getCompanyByUuid(req.params.uuid);
+  const { sql } = await exportCompanyDataSql(company.id);
+  return sendSuccess(res, { bytes: Buffer.byteLength(sql, 'utf8') });
+});

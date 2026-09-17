@@ -16,5 +16,6 @@ router.post('/', requireRole('SuperAdmin'), validate(createCompanySchema), ctrl.
 router.put('/:uuid', authorize('company.update'), validate(updateCompanySchema), ctrl.update);
 router.delete('/:uuid', requireRole('SuperAdmin'), ctrl.remove);
 router.get('/:uuid/export', requireRole('SuperAdmin'), ctrl.exportData);
+router.get('/:uuid/export/size', requireRole('SuperAdmin'), ctrl.exportSize);
 
 export default router;
