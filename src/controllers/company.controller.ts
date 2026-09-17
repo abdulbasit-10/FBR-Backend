@@ -3,6 +3,7 @@ import { StatusCodes } from 'http-status-codes';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import * as companyService from '../services/company.service';
+import { exportCompanyDataSql } from '../services/company-export.service';
 import { ForbiddenError, UnauthorizedError } from '../utils/AppError';
 
 const isSuperAdmin = (req: Request): boolean => req.user?.roleName === 'SuperAdmin';
@@ -54,4 +55,13 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   const company = await companyService.getCompanyByUuid(req.params.uuid);
   await companyService.deleteCompany(company.id);
   return sendSuccess(res, null, 'Company deleted');
+});
+
+/** GET /companies/:uuid/export — SuperAdmin only. Downloads a full SQL dump of that company's data. */
+export const exportData = asyncHandler(async (req: Request, res: Response) => {
+  const company = await companyService.getCompanyByUuid(req.params.uuid);
+  const { fileName, sql } = await exportCompanyDataSql(company.id);
+  res.setHeader('Content-Type', 'application/sql');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  return res.send(sql);
 });
