@@ -45,12 +45,19 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
     delete body.companyId;
   }
   const user = await userService.getUserByUuid(req.params.uuid, scope(req));
+  if (user.id === req.user.id && body.isActive === false) {
+    throw new ForbiddenError('You cannot deactivate your own account');
+  }
   const u = await userService.updateUser(user.id, scope(req), body);
   return sendSuccess(res, u, 'User updated');
 });
 
 export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new UnauthorizedError();
   const user = await userService.getUserByUuid(req.params.uuid, scope(req));
+  if (user.id === req.user.id) {
+    throw new ForbiddenError('You cannot delete your own account');
+  }
   await userService.deleteUser(user.id, scope(req));
   return sendSuccess(res, null, 'User deleted');
 });

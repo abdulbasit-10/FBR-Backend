@@ -8,10 +8,22 @@ fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf']);
 
+// Extension is derived from the validated mimetype, never the client-supplied original
+// filename — otherwise an attacker could spoof mimetype "image/png" while naming the file
+// "x.html"/"x.svg", getting real HTML/script content stored and served as executable HTML
+// (stored XSS) since express.static picks Content-Type from the file extension at serve time.
+const MIME_EXTENSIONS: Record<string, string> = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/webp': '.webp',
+    'application/pdf': '.pdf',
+};
+
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_ROOT),
     filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname);
+        const ext = MIME_EXTENSIONS[file.mimetype] ?? '';
         cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
     },
 });

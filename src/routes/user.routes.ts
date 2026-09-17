@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/user.controller';
 import { authenticate } from '../middlewares/authenticate';
-import { authorize } from '../middlewares/authorize';
+import { authorize, authorizeAny } from '../middlewares/authorize';
 import { validate } from '../middlewares/validate';
 import {
   createRoleSchema,
@@ -29,7 +29,9 @@ router.post(
 );
 
 // Roles & Permissions
-router.get('/roles', authorize('role.manage'), ctrl.listRoles);
+// Listing roles is needed by anyone who can create/update team members (to pick a role for
+// them) — creating/editing/deleting roles themselves stays restricted to role.manage.
+router.get('/roles', authorizeAny('role.manage', 'user.create', 'user.update'), ctrl.listRoles);
 router.get('/roles/:uuid', authorize('role.manage'), ctrl.getRole);
 router.post('/roles', authorize('role.manage'), validate(createRoleSchema), ctrl.createRole);
 router.put('/roles/:uuid', authorize('role.manage'), validate(updateRoleSchema), ctrl.updateRole);
