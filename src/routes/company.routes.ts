@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/', authorize('company.read'), ctrl.list);
+router.get('/stats/overview', requireRole('SuperAdmin'), ctrl.stats);
 router.get('/:uuid', authorize('company.read'), ctrl.getOne);
 router.post('/', requireRole('SuperAdmin'), validate(createCompanySchema), ctrl.create);
 router.put('/:uuid', authorize('company.update'), validate(updateCompanySchema), ctrl.update);

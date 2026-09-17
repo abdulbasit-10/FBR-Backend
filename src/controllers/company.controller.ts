@@ -21,6 +21,12 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   return sendSuccess(res, result);
 });
 
+/** GET /companies/stats/overview — SuperAdmin only. Platform-wide counts for the dashboard. */
+export const stats = asyncHandler(async (req: Request, res: Response) => {
+  const data = await companyService.getPlatformStats();
+  return sendSuccess(res, data);
+});
+
 /** GET /companies/:uuid */
 export const getOne = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) throw new UnauthorizedError();

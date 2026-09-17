@@ -1,5 +1,5 @@
 import { Op, WhereOptions } from 'sequelize';
-import { Company, CompanyAttributes, CompanyCreationAttributes } from '../models';
+import { Company, CompanyAttributes, CompanyCreationAttributes, User } from '../models';
 import { NotFoundError } from '../utils/AppError';
 import {
   PaginationParams,
@@ -97,4 +97,45 @@ export const companyScope = (
 export const existsByNtn = async (ntn: string): Promise<boolean> => {
   const found = await Company.findOne({ where: { ntn: { [Op.eq]: ntn } } as WhereOptions });
   return !!found;
+};
+
+/** Platform-wide overview for the SuperAdmin dashboard. */
+export const getPlatformStats = async () => {
+  const [
+    totalCompanies,
+    activeCompanies,
+    sandboxCompanies,
+    productionCompanies,
+    totalUsers,
+    activeUsers,
+    recentCompanies,
+  ] = await Promise.all([
+    Company.count(),
+    Company.count({ where: { isActive: true } }),
+    Company.count({ where: { fbrEnvironment: 'sandbox' } }),
+    Company.count({ where: { fbrEnvironment: { [Op.in]: ['production', 'both'] } } }),
+    User.count({ where: { companyId: { [Op.ne]: null as unknown as number } } }),
+    User.count({ where: { companyId: { [Op.ne]: null as unknown as number }, isActive: true } }),
+    Company.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      attributes: ['id', 'uuid', 'name', 'businessName', 'fbrEnvironment', 'isActive', 'createdAt'],
+    }),
+  ]);
+
+  return {
+    companies: {
+      total: totalCompanies,
+      active: activeCompanies,
+      inactive: totalCompanies - activeCompanies,
+      sandbox: sandboxCompanies,
+      production: productionCompanies,
+    },
+    users: {
+      total: totalUsers,
+      active: activeUsers,
+      inactive: totalUsers - activeUsers,
+    },
+    recentCompanies,
+  };
 };
