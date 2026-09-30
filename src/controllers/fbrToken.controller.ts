@@ -2,16 +2,17 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
-import { ForbiddenError, UnauthorizedError } from '../utils/AppError';
+import { BadRequestError, UnauthorizedError } from '../utils/AppError';
 import * as fbrTokens from '../services/fbr-token.service';
 
+// These routes are SuperAdmin-only (enforced by requireRole('SuperAdmin') in the
+// router), so the caller's own companyId is always null — the target company
+// must always be named explicitly.
 const requireCompany = (req: Request): { companyId: number; userId: number } => {
   if (!req.user) throw new UnauthorizedError();
-  const companyId =
-    req.user.roleName === 'SuperAdmin' && req.body?.companyId
-      ? Number(req.body.companyId)
-      : req.user.companyId;
-  if (!companyId) throw new ForbiddenError('companyId required');
+  const requestedCompanyId = req.body?.companyId ?? req.query?.companyId;
+  const companyId = requestedCompanyId ? Number(requestedCompanyId) : null;
+  if (!companyId) throw new BadRequestError('companyId is required');
   return { companyId, userId: req.user.id };
 };
 
@@ -23,6 +24,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     res,
     rows.map((t) => ({
       id: t.id,
+      uuid: t.uuid,
       companyId: t.companyId,
       environment: t.environment,
       issuedAt: t.issuedAt,
@@ -48,6 +50,7 @@ export const upsert = asyncHandler(async (req: Request, res: Response) => {
     res,
     {
       id: row.id,
+      uuid: row.uuid,
       environment: row.environment,
       issuedAt: row.issuedAt,
       expiresAt: row.expiresAt,

@@ -217,8 +217,12 @@ export const createInvoice = async (
   }
 
   // Rule §10: chosen scenarioId must be applicable to the seller's declared
-  // business activity × sector when both are set on the company.
+  // business activity × sector when both are set on the company. A Debit Note
+  // isn't a fresh scenario test — it corrects an already-scenario-tested Sale
+  // Invoice — so it inherits that invoice's scenarioId as-is without re-validation
+  // (the company's declared activity/sector may have legitimately changed since).
   if (
+    invoiceType === 'Sale Invoice' &&
     environment === 'sandbox' &&
     input.scenarioId &&
     company.businessActivity &&

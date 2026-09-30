@@ -8,6 +8,7 @@ export const upsertSettingSchema = Joi.object({
 });
 
 export const upsertFbrTokenSchema = Joi.object({
+  companyId: Joi.number().integer().positive().required(),
   environment: Joi.string().valid('sandbox', 'production').required(),
   token: Joi.string().trim().min(10).required(),
   expiresAt: Joi.date().iso().allow(null).optional(),

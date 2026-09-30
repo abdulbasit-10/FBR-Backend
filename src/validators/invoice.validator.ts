@@ -105,6 +105,7 @@ export const invoiceListQuery = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(200).default(20),
   status: Joi.string().valid('draft', 'validated', 'posted', 'failed', 'cancelled', 'unposted').optional(),
+  invoiceType: Joi.string().valid('Sale Invoice', 'Debit Note').optional(),
   customerId: Joi.number().integer().positive().optional(),
   from: Joi.date().iso().optional(),
   to: Joi.date().iso().min(Joi.ref('from')).optional(),

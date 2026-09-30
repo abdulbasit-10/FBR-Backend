@@ -1,6 +1,6 @@
 import { Op, WhereOptions } from 'sequelize';
-import { Company, CompanyAttributes, CompanyCreationAttributes, User } from '../models';
-import { NotFoundError } from '../utils/AppError';
+import { Company, CompanyAttributes, CompanyCreationAttributes, FbrToken, User } from '../models';
+import { BadRequestError, NotFoundError } from '../utils/AppError';
 import {
   PaginationParams,
   PaginatedResult,
@@ -8,6 +8,28 @@ import {
   normalisePagination,
   paginationMeta,
 } from '../utils/pagination';
+
+/**
+ * A company can only be placed into (or kept in) Production/Both once it has a
+ * saved, active production FBR token — otherwise invoice posting would fail at
+ * the worst possible time. `companyId` is null when creating a brand-new
+ * company, which by definition can never have a token yet, so Production is
+ * always rejected at that point.
+ */
+const assertProductionTokenExists = async (
+  companyId: number | null,
+  fbrEnvironment: string | undefined,
+): Promise<void> => {
+  if (fbrEnvironment !== 'production' && fbrEnvironment !== 'both') return;
+  const hasToken =
+    companyId !== null &&
+    (await FbrToken.count({ where: { companyId, environment: 'production', isActive: true } })) > 0;
+  if (!hasToken) {
+    throw new BadRequestError(
+      'Cannot set FBR environment to Production until a valid, active production FBR token has been saved for this company.',
+    );
+  }
+};
 
 export const listCompanies = async (
   params: PaginationParams,
@@ -38,6 +60,7 @@ export const getCompanyByUuid = async (uuid: string): Promise<Company> => {
 };
 
 export const createCompany = async (data: CompanyCreationAttributes): Promise<Company> => {
+  await assertProductionTokenExists(null, data.fbrEnvironment);
   return Company.create(data);
 };
 
@@ -46,6 +69,11 @@ export const updateCompany = async (
   data: Partial<CompanyAttributes>,
 ): Promise<Company> => {
   const company = await getCompanyById(id);
+  // Only re-validate when the caller is actually touching fbrEnvironment — otherwise
+  // an unrelated edit (e.g. address) would wrongly get blocked if a token later expired.
+  if (data.fbrEnvironment !== undefined) {
+    await assertProductionTokenExists(id, data.fbrEnvironment);
+  }
   await company.update(data);
   return company;
 };
