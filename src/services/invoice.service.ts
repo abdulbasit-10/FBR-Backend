@@ -225,13 +225,13 @@ export const createInvoice = async (
     invoiceType === 'Sale Invoice' &&
     environment === 'sandbox' &&
     input.scenarioId &&
-    company.businessActivity &&
+    company.businessActivities?.length &&
     company.sector &&
-    !isScenarioApplicable(company.businessActivity, company.sector, input.scenarioId)
+    !isScenarioApplicable(company.businessActivities, company.sector, input.scenarioId)
   ) {
-    const list = applicableScenarios(company.businessActivity, company.sector);
+    const list = applicableScenarios(company.businessActivities, company.sector);
     throw new BadRequestError(
-      `Scenario ${input.scenarioId} is not applicable to ${company.businessActivity} / ${company.sector}. ` +
+      `Scenario ${input.scenarioId} is not applicable to ${company.businessActivities.join(', ')} / ${company.sector}. ` +
       `Allowed: ${list?.join(', ') ?? '—'}.`,
     );
   }

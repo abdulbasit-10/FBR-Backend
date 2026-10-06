@@ -14,7 +14,7 @@ export interface ScenarioProgressRow {
 }
 
 export interface ScenarioProgressResult {
-    businessActivity: string | null;
+    businessActivities: string[] | null;
     sector: string | null;
     environment: string;
     completed: number;
@@ -24,19 +24,19 @@ export interface ScenarioProgressResult {
 }
 
 /**
- * Scenario IDs applicable to a company's declared Business Activity + Sector, for the
+ * Scenario IDs applicable to a company's declared Business Activities + Sector, for the
  * Sales Invoice "Scenario ID" picker — null means the pairing isn't set/restricted, so
  * every scenario is offered (matches isScenarioApplicable()'s own fail-open behaviour).
  */
 export const getApplicableScenarioIds = async (
     companyId: number,
-): Promise<{ businessActivity: string | null; sector: string | null; scenarioIds: string[] | null }> => {
+): Promise<{ businessActivities: string[] | null; sector: string | null; scenarioIds: string[] | null }> => {
     const company = await Company.findByPk(companyId);
     if (!company) throw new NotFoundError('Company not found');
     return {
-        businessActivity: company.businessActivity,
+        businessActivities: company.businessActivities,
         sector: company.sector,
-        scenarioIds: applicableScenarios(company.businessActivity, company.sector),
+        scenarioIds: applicableScenarios(company.businessActivities, company.sector),
     };
 };
 
@@ -49,7 +49,7 @@ export const getScenarioProgress = async (companyId: number): Promise<ScenarioPr
     const company = await Company.findByPk(companyId);
     if (!company) throw new NotFoundError('Company not found');
 
-    const scenarioIds = applicableScenarios(company.businessActivity, company.sector) ?? [];
+    const scenarioIds = applicableScenarios(company.businessActivities, company.sector) ?? [];
 
     const invoices = scenarioIds.length
         ? await Invoice.findAll({
@@ -86,7 +86,7 @@ export const getScenarioProgress = async (companyId: number): Promise<ScenarioPr
     const completed = rows.filter((r) => r.status === 'Successful').length;
 
     return {
-        businessActivity: company.businessActivity,
+        businessActivities: company.businessActivities,
         sector: company.sector,
         environment: company.fbrEnvironment,
         completed,

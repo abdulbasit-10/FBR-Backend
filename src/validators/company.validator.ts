@@ -12,7 +12,7 @@ export const createCompanySchema = Joi.object({
   phone: Joi.string().trim().max(30).allow(null, '').optional(),
   email: Joi.string().email().lowercase().trim().allow(null, '').optional(),
   salesTaxRegNo: Joi.string().trim().max(50).allow(null, '').optional(),
-  businessActivity: Joi.string().valid(...FBR_BUSINESS_ACTIVITIES).allow(null, '').optional(),
+  businessActivities: Joi.array().items(Joi.string().valid(...FBR_BUSINESS_ACTIVITIES)).allow(null).optional(),
   sector: Joi.string().valid(...FBR_SECTORS).allow(null, '').optional(),
   fbrEnvironment: Joi.string().valid('sandbox', 'production', 'both').default('sandbox'),
   isActive: Joi.boolean().default(true),

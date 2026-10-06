@@ -179,24 +179,37 @@ const APPLICABLE_MAP: Record<FbrBusinessActivity, Partial<Record<FbrSector, stri
 };
 
 /**
- * Returns the sandbox scenario IDs applicable to the given activity + sector,
- * or `null` if the pairing isn't declared in the spec.
+ * Returns the sandbox scenario IDs applicable to the given activity (or activities) +
+ * sector, or `null` if nothing in the spec matches. A company may declare more than one
+ * Business Activity (matching FBR's own IRIS form); the result is the union of each
+ * activity's applicable scenarios for that single sector.
  */
 export function applicableScenarios(
-  activity: FbrBusinessActivity | null | undefined,
+  activities: FbrBusinessActivity[] | FbrBusinessActivity | null | undefined,
   sector: FbrSector | null | undefined,
 ): string[] | null {
-  if (!activity || !sector) return null;
-  return APPLICABLE_MAP[activity]?.[sector] ?? null;
+  if (!activities || !sector) return null;
+  const list = Array.isArray(activities) ? activities : [activities];
+  if (list.length === 0) return null;
+  const union = new Set<string>();
+  let matched = false;
+  for (const activity of list) {
+    const ids = APPLICABLE_MAP[activity]?.[sector];
+    if (ids) {
+      matched = true;
+      ids.forEach((id) => union.add(id));
+    }
+  }
+  return matched ? Array.from(union) : null;
 }
 
-/** True if `scenarioId` is allowed for the (activity, sector) pair. */
+/** True if `scenarioId` is allowed for the (activity/activities, sector) pair. */
 export function isScenarioApplicable(
-  activity: FbrBusinessActivity | null | undefined,
+  activities: FbrBusinessActivity[] | FbrBusinessActivity | null | undefined,
   sector: FbrSector | null | undefined,
   scenarioId: string,
 ): boolean {
-  const list = applicableScenarios(activity, sector);
+  const list = applicableScenarios(activities, sector);
   if (!list) return true; // caller declined to declare — accept
   return list.includes(scenarioId);
 }
