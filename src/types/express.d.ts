@@ -3,7 +3,6 @@
  * Extends Express Request so `req.user` is strongly typed everywhere.
  */
 
-
 export interface AuthUser {
   id: number;
   uuid: string;
