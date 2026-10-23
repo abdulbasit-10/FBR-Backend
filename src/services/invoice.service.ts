@@ -378,6 +378,7 @@ export const getInvoice = async (id: number, companyId: number): Promise<Invoice
     include: [
       { model: InvoiceItem, as: 'items' },
       { model: Customer, as: 'customer' },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
       { model: InvoiceLog, as: 'logs', separate: true, order: [['created_at', 'ASC']] },
     ],
   });
@@ -391,6 +392,7 @@ export const getInvoiceByUuid = async (uuid: string, companyId: number): Promise
     include: [
       { model: InvoiceItem, as: 'items' },
       { model: Customer, as: 'customer' },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
       { model: InvoiceLog, as: 'logs', separate: true, order: [['created_at', 'ASC']] },
     ],
   });
