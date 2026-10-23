@@ -1,6 +1,7 @@
 import { Op, WhereOptions } from 'sequelize';
 import { Company, CompanyAttributes, CompanyCreationAttributes, FbrToken, User } from '../models';
 import { BadRequestError, NotFoundError } from '../utils/AppError';
+import { normalizeNtnCnic } from '../constants/fbr';
 import {
   PaginationParams,
   PaginatedResult,
@@ -61,7 +62,7 @@ export const getCompanyByUuid = async (uuid: string): Promise<Company> => {
 
 export const createCompany = async (data: CompanyCreationAttributes): Promise<Company> => {
   await assertProductionTokenExists(null, data.fbrEnvironment);
-  return Company.create(data);
+  return Company.create({ ...data, ntn: normalizeNtnCnic(data.ntn) });
 };
 
 export const updateCompany = async (
@@ -74,14 +75,30 @@ export const updateCompany = async (
   if (data.fbrEnvironment !== undefined) {
     await assertProductionTokenExists(id, data.fbrEnvironment);
   }
-  await company.update(data);
+  await company.update(data.ntn !== undefined ? { ...data, ntn: normalizeNtnCnic(data.ntn) } : data);
   return company;
 };
 
 export const deleteCompany = async (id: number): Promise<void> => {
   const company = await getCompanyById(id);
-  await company.destroy();
+  try {
+    // force: true = genuine hard delete, not the paranoid soft-delete default. The
+    // confirmation dialog on the frontend already tells the SuperAdmin this is
+    // permanent and irreversible, so a soft delete (which keeps the row — and its
+    // unique NTN — around forever, silently blocking re-registration) would be
+    // a broken promise. Most child tables CASCADE; users/invoices/purchases are
+    // RESTRICT by design, so this throws instead of silently orphaning real data.
+    await company.destroy({ force: true });
+  } catch (err) {
+    if ((err as { name?: string }).name === 'SequelizeForeignKeyConstraintError') {
+      throw new BadRequestError(
+        'Cannot delete this company — it still has users, invoices, or purchases linked to it. Remove/reassign those first.',
+      );
+    }
+    throw err;
+  }
 };
+
 
 /** Scoped fetch: assert caller can access this company. */
 export const assertCompanyAccessible = async (

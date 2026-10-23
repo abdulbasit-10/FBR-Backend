@@ -1,5 +1,6 @@
 import { Customer, CustomerAttributes, CustomerCreationAttributes } from '../models';
 import { NotFoundError } from '../utils/AppError';
+import { normalizeNtnCnic } from '../constants/fbr';
 import {
   PaginationParams,
   PaginatedResult,
@@ -64,7 +65,12 @@ export const createCustomer = async (
   });
   const lastNum = last?.customerNo ? parseInt(last.customerNo.replace('C-', ''), 10) || 0 : 0;
   const customerNo = `C-${String(lastNum + 1).padStart(6, '0')}`;
-  return Customer.create({ ...data, companyId, customerNo } as CustomerCreationAttributes);
+  return Customer.create({
+    ...data,
+    companyId,
+    customerNo,
+    ntnCnic: data.ntnCnic ? normalizeNtnCnic(data.ntnCnic) : data.ntnCnic,
+  } as CustomerCreationAttributes);
 };
 
 export const updateCustomer = async (
@@ -73,7 +79,7 @@ export const updateCustomer = async (
   data: Partial<CustomerAttributes>,
 ): Promise<Customer> => {
   const c = await getCustomerByUuid(uuid, companyId);
-  await c.update(data);
+  await c.update(data.ntnCnic ? { ...data, ntnCnic: normalizeNtnCnic(data.ntnCnic) } : data);
   return c;
 };
 
