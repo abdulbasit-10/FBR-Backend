@@ -358,5 +358,23 @@ export const getSroSchedulesForCompany = async (
   originationSupplier?: number,
 ): Promise<SroScheduleResult[]> => {
   const token = await resolveCompanyToken(companyId);
-  return getSroSchedules(rateId, date, originationSupplier, token);
+  // FBR's SroSchedule endpoint rejects requests missing date / origination_supplier_csv
+  // (see §5.7 example: rate_id + date + origination_supplier_csv together). Default them
+  // from today's date and the company's own declared province when the caller (e.g. the
+  // New Item page) only supplies rateId — same defaults syncRates() uses in syncAll().
+  let resolvedDate = date;
+  let resolvedOrigination = originationSupplier;
+  if (!resolvedDate || resolvedOrigination === undefined) {
+    const company = await Company.findByPk(companyId);
+    if (resolvedOrigination === undefined && company?.province) {
+      const province = await FbrProvince.findOne({ where: { stateProvinceDesc: company.province } });
+      resolvedOrigination = province?.stateProvinceCode;
+    }
+    if (!resolvedDate) {
+      const today = new Date();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      resolvedDate = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+    }
+  }
+  return getSroSchedules(rateId, resolvedDate, resolvedOrigination, token);
 };
