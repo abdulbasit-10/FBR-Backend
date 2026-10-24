@@ -526,6 +526,33 @@ const applyResponseToInvoice = async (
   invoice.fbrErrorCode = vr?.errorCode ?? null;
   invoice.fbrError = vr?.error ?? null;
 
+  // Save per-item status/error detail either way — FBR often puts the real rejection
+  // reason inside invoiceStatuses[].error per line item, leaving the top-level
+  // validationResponse.error empty, even on failure.
+  if (vr?.invoiceStatuses?.length) {
+    for (const s of vr.invoiceStatuses) {
+      const idx = parseInt(s.itemSNo, 10);
+      const item = items.find((i) => i.itemSrNo === idx);
+      if (item) {
+        item.fbrInvoiceNo = s.invoiceNo ?? null;
+        item.fbrStatusCode = s.statusCode ?? null;
+        item.fbrStatus = s.status ?? null;
+        item.fbrErrorCode = s.errorCode ?? null;
+        item.fbrError = s.error ?? null;
+        await item.save();
+      }
+    }
+    // Fall back to the first per-item error for the invoice-level banner when FBR
+    // didn't populate the header-level error/errorCode fields on rejection.
+    if (!invoice.fbrError) {
+      const firstItemError = vr.invoiceStatuses.find((s) => s.error);
+      if (firstItemError) {
+        invoice.fbrError = firstItemError.error;
+        invoice.fbrErrorCode = invoice.fbrErrorCode ?? firstItemError.errorCode;
+      }
+    }
+  }
+
   if (vr?.statusCode === '00') {
     if (mode === 'post') {
       invoice.status = 'posted';
@@ -534,22 +561,6 @@ const applyResponseToInvoice = async (
       invoice.postedAt = new Date();
     } else {
       invoice.status = 'validated';
-    }
-
-    // per-item statuses
-    if (vr.invoiceStatuses?.length) {
-      for (const s of vr.invoiceStatuses) {
-        const idx = parseInt(s.itemSNo, 10);
-        const item = items.find((i) => i.itemSrNo === idx);
-        if (item) {
-          item.fbrInvoiceNo = s.invoiceNo ?? null;
-          item.fbrStatusCode = s.statusCode ?? null;
-          item.fbrStatus = s.status ?? null;
-          item.fbrErrorCode = s.errorCode ?? null;
-          item.fbrError = s.error ?? null;
-          await item.save();
-        }
-      }
     }
   } else {
     invoice.status = 'failed';

@@ -298,6 +298,27 @@ export const syncAll = async (companyId: number): Promise<Record<string, number>
       counts[name] = -1;
     }
   }
+
+  // Rates (§5.8) is NOT a flat reference list like the others — FBR requires
+  // date + transTypeId + originationSupplier (province) as query params. Default
+  // to transTypeId=18 ("Sale Invoice", per PRAL's own documented example), today's
+  // date, and this company's own declared province, so the "Sale Type" picker on
+  // the New Item page (which derives its options from synced rates) has something
+  // usable without requiring a separate UI for picking those filters up front.
+  try {
+    const company = await Company.findByPk(companyId);
+    const province = company?.province
+      ? await FbrProvince.findOne({ where: { stateProvinceDesc: company.province } })
+      : null;
+    const today = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const date = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+    counts.rates = await syncRates(18, province?.stateProvinceCode, date, token);
+  } catch (err) {
+    logger.warn(`Reference sync failed for rates: ${(err as Error).message}`);
+    counts.rates = -1;
+  }
+
   return counts;
 };
 
