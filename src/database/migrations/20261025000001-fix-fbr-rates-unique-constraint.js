@@ -14,11 +14,20 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
     async up(queryInterface) {
-        await queryInterface.removeIndex('fbr_rates', 'fbr_rates_rate_id_unique');
-        await queryInterface.addIndex('fbr_rates', ['rate_id', 'transaction_type_id'], {
-            unique: true,
-            name: 'fbr_rates_rate_id_transtype_unique',
-        });
+        // Defensive: only drop the old index if it actually exists on this database —
+        // avoids a hard failure if the prior migration's exact state is uncertain.
+        const [existing] = await queryInterface.sequelize.query('SHOW INDEX FROM fbr_rates');
+        const hasOldIndex = existing.some((row) => row.Key_name === 'fbr_rates_rate_id_unique');
+        if (hasOldIndex) {
+            await queryInterface.removeIndex('fbr_rates', 'fbr_rates_rate_id_unique');
+        }
+        const hasNewIndex = existing.some((row) => row.Key_name === 'fbr_rates_rate_id_transtype_unique');
+        if (!hasNewIndex) {
+            await queryInterface.addIndex('fbr_rates', ['rate_id', 'transaction_type_id'], {
+                unique: true,
+                name: 'fbr_rates_rate_id_transtype_unique',
+            });
+        }
     },
 
     async down(queryInterface) {
