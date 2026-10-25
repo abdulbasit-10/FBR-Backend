@@ -378,3 +378,55 @@ export const getSroSchedulesForCompany = async (
   }
   return getSroSchedules(rateId, resolvedDate, resolvedOrigination, token);
 };
+
+// ---------- SRO Item (§ SROItem v2 — distinct from /sroitemcode v1, scoped to a chosen SRO Schedule) ----------
+
+export interface SroItemResult {
+  srO_ITEM_ID: number;
+  srO_ITEM_DESC: string;
+}
+
+/**
+ * GET /pdi/v2/SROItem?date=&sro_id= — the Item Serial No list valid for a SPECIFIC SRO
+ * Schedule (sro_id from getSroSchedules/§5.7). NOT the same as the static /pdi/v1/sroitemcode
+ * list (cached in fbr_sros) which isn't actually scoped to the chosen schedule — that's why
+ * the "Item Serial" picker on the New Item page previously had no relevant options for most
+ * SRO Schedules (confirmed live: FBR error [0078] "Valid Item Sr. No. is mandatory where
+ * SRO/Schedule No. is provided").
+ */
+export const getSroItems = async (
+  sroId: number,
+  date?: string,
+  token?: string,
+): Promise<{ sroItemId: number; sroItemDesc: string }[]> => {
+  const params: Record<string, string | number> = { sro_id: sroId };
+  if (date) params.date = date;
+
+  const data = await fbr.fetchReference<Array<Record<string, unknown>>>(
+    config.fbr.endpoints.sroItemV2,
+    params,
+    token,
+  );
+  return data
+    .map((d) => ({
+      sroItemId: Number(d.srO_ITEM_ID ?? d.sroItemId),
+      sroItemDesc: String(d.srO_ITEM_DESC ?? d.sroItemDesc ?? '').trim(),
+    }))
+    .filter((r) => Number.isFinite(r.sroItemId));
+};
+
+/** SRO Item for a given company — resolves the company's active FBR token first. */
+export const getSroItemsForCompany = async (
+  companyId: number,
+  sroId: number,
+  date?: string,
+): Promise<{ sroItemId: number; sroItemDesc: string }[]> => {
+  const token = await resolveCompanyToken(companyId);
+  let resolvedDate = date;
+  if (!resolvedDate) {
+    const today = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    resolvedDate = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+  }
+  return getSroItems(sroId, resolvedDate, token);
+};
