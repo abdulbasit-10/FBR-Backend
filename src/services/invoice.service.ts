@@ -111,7 +111,7 @@ const buildFbrPayload = (invoice: Invoice, items: InvoiceItem[]): object => ({
   sellerBusinessName: invoice.sellerBusinessName,
   sellerProvince: invoice.sellerProvince,
   sellerAddress: invoice.sellerAddress,
-  buyerNTNCNIC: invoice.buyerNtnCnic,
+  buyerNTNCNIC: invoice.buyerNtnCnic ?? undefined,
   buyerBusinessName: invoice.buyerBusinessName,
   buyerProvince: invoice.buyerProvince,
   buyerAddress: invoice.buyerAddress,
