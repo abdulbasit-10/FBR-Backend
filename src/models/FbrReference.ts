@@ -270,7 +270,7 @@ export class FbrRate
 FbrRate.init(
   {
     id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-    rateId: { type: DataTypes.INTEGER, allowNull: false, unique: true, field: 'rate_id' },
+    rateId: { type: DataTypes.INTEGER, allowNull: false, field: 'rate_id' },
     rateDesc: { type: DataTypes.STRING(255), allowNull: false, field: 'rate_desc' },
     rateValue: {
       type: DataTypes.DECIMAL(8, 4),
@@ -302,7 +302,7 @@ FbrRate.init(
     tableName: 'fbr_rates',
     timestamps: false,
     indexes: [
-      { fields: ['rate_id'] },
+      { unique: true, fields: ['rate_id', 'transaction_type_id'] },
       { fields: ['transaction_type_id', 'province_id', 'effective_date'] },
     ],
   },
