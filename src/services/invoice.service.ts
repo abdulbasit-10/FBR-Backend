@@ -129,13 +129,7 @@ const buildFbrPayload = (invoice: Invoice, items: InvoiceItem[]): object => ({
     fixedNotifiedValueOrRetailPrice: Number(it.fixedNotifiedValueOrRetailPrice),
     salesTaxApplicable: Number(it.salesTaxApplicable),
     salesTaxWithheldAtSource: Number(it.salesTaxWithheldAtSource),
-    // FBR's own spec sample always shows these 4 as present numeric "0.00", and
-    // omitting them outright gets rejected with [0300] "must not be ... null,
-    // empty". The ONE exception confirmed live: "Goods at Reduced Rate" rejects
-    // a literal extraTax value (even 0) with [0091] "Extra tax provided where
-    // sale is of reduced rate goods" — so only extraTax is conditionally omitted,
-    // and only for that specific sale type.
-    extraTax: it.saleType === 'Goods at Reduced Rate' ? undefined : Number(it.extraTax),
+    extraTax: Number(it.extraTax),
     furtherTax: Number(it.furtherTax),
     sroScheduleNo: it.sroScheduleNo ?? '',
     fedPayable: Number(it.fedPayable),
