@@ -422,11 +422,9 @@ export const getSroItemsForCompany = async (
   date?: string,
 ): Promise<{ sroItemId: number; sroItemDesc: string }[]> => {
   const token = await resolveCompanyToken(companyId);
-  let resolvedDate = date;
-  if (!resolvedDate) {
-    const today = new Date();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    resolvedDate = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
-  }
+  // Per spec §5.10 the example uses YYYY-MM-DD ("date=2025-03-25"), unlike the
+  // DD-Mon-YYYY format SaleTypeToRate/SroSchedule expect — sending the wrong
+  // format here gets a bare 500 back from FBR itself (confirmed live).
+  const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
   return getSroItems(sroId, resolvedDate, token);
 };
