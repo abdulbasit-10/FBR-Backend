@@ -129,7 +129,12 @@ const buildFbrPayload = (invoice: Invoice, items: InvoiceItem[]): object => ({
     fixedNotifiedValueOrRetailPrice: Number(it.fixedNotifiedValueOrRetailPrice),
     salesTaxApplicable: Number(it.salesTaxApplicable),
     salesTaxWithheldAtSource: Number(it.salesTaxWithheldAtSource),
-    extraTax: Number(it.extraTax),
+    // FBR's own official sample payload shows extraTax as "" (empty string) when
+    // not applicable — NOT 0 and NOT omitted, unlike furtherTax/fedPayable/discount
+    // which its sample shows as plain 0. Sending a literal 0 here gets rejected
+    // for some sale types (confirmed live: [0091] "Extra tax provided where sale
+    // is of reduced rate goods").
+    extraTax: Number(it.extraTax) || '',
     furtherTax: Number(it.furtherTax),
     sroScheduleNo: it.sroScheduleNo ?? '',
     fedPayable: Number(it.fedPayable),
