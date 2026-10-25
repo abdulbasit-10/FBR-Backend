@@ -115,3 +115,12 @@ export const sroSchedules = asyncHandler(async (req: Request, res: Response) => 
   const data = await lookup.getSroSchedulesForCompany(companyIdOf(req), rateId, date, originationSupplier);
   return sendSuccess(res, data);
 });
+
+/** GET /lookup/sro-items?sroId=&date= — proxies FBR SROItem v2 (Item Serial No scoped to a chosen SRO Schedule) */
+export const sroItems = asyncHandler(async (req: Request, res: Response) => {
+  const sroId = Number(req.query.sroId);
+  if (!Number.isFinite(sroId)) throw new BadRequestError('sroId is required');
+  const date = (req.query.date as string | undefined)?.trim() || undefined;
+  const data = await lookup.getSroItemsForCompany(companyIdOf(req), sroId, date);
+  return sendSuccess(res, data);
+});
