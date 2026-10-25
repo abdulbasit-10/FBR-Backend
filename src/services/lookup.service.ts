@@ -428,3 +428,39 @@ export const getSroItemsForCompany = async (
   const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
   return getSroItems(sroId, resolvedDate, token);
 };
+
+// ---------- HS Code → UOM (§5.9 — valid units of measure for a specific HS code) ----------
+
+/**
+ * GET /pdi/v2/HS_UOM?hs_code=&annexure_id= — the UOM(s) actually valid for a given HS code.
+ * NOT the same as the generic /pdi/v1/uom flat list (cached in fbr_uoms) — FBR rejects
+ * invoices whose item UOM isn't in this HS-code-specific set with [0099] "Provided UoM is
+ * not allowed against the provided HS Code" even when the UOM is a perfectly valid generic one.
+ */
+export const getHsUoms = async (
+  hsCode: string,
+  annexureId: number,
+  token?: string,
+): Promise<{ uomId: number; description: string }[]> => {
+  const data = await fbr.fetchReference<Array<Record<string, unknown>>>(
+    config.fbr.endpoints.hsUom,
+    { hs_code: hsCode, annexure_id: annexureId },
+    token,
+  );
+  return data
+    .map((d) => ({
+      uomId: Number(d.uoM_ID ?? d.uomId),
+      description: String(d.description ?? '').trim(),
+    }))
+    .filter((r) => Number.isFinite(r.uomId));
+};
+
+/** HS→UOM for a given company — resolves the company's active FBR token first. */
+export const getHsUomsForCompany = async (
+  companyId: number,
+  hsCode: string,
+  annexureId: number,
+): Promise<{ uomId: number; description: string }[]> => {
+  const token = await resolveCompanyToken(companyId);
+  return getHsUoms(hsCode, annexureId, token);
+};

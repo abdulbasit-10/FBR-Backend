@@ -22,6 +22,7 @@ router.get('/active-taxpayer-status', ctrl.activeTaxpayerStatus);
 router.get('/verify-registration', ctrl.verifyRegistration);
 router.get('/sro-schedules', ctrl.sroSchedules);
 router.get('/sro-items', ctrl.sroItems);
+router.get('/hs-uoms', ctrl.hsUoms);
 
 // Sync operations (admin)
 router.post('/sync', authorize('reference.sync'), ctrl.syncAll);

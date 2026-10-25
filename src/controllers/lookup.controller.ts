@@ -124,3 +124,12 @@ export const sroItems = asyncHandler(async (req: Request, res: Response) => {
   const data = await lookup.getSroItemsForCompany(companyIdOf(req), sroId, date);
   return sendSuccess(res, data);
 });
+
+/** GET /lookup/hs-uoms?hsCode=&annexureId= — proxies FBR HS_UOM (valid UOMs for a specific HS code) */
+export const hsUoms = asyncHandler(async (req: Request, res: Response) => {
+  const hsCode = (req.query.hsCode as string | undefined)?.trim();
+  if (!hsCode) throw new BadRequestError('hsCode is required');
+  const annexureId = Number(req.query.annexureId ?? 3);
+  const data = await lookup.getHsUomsForCompany(companyIdOf(req), hsCode, annexureId);
+  return sendSuccess(res, data);
+});
