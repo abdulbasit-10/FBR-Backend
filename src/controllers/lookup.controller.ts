@@ -30,9 +30,13 @@ export const transactionTypes = asyncHandler(async (_req: Request, res: Response
 export const sros = asyncHandler(async (_req: Request, res: Response) =>
   sendSuccess(res, await lookup.listSros()),
 );
-export const rates = asyncHandler(async (_req: Request, res: Response) =>
-  sendSuccess(res, await lookup.listRates()),
-);
+export const rates = asyncHandler(async (req: Request, res: Response) => {
+  const transactionTypeId = req.query.transactionTypeId ? Number(req.query.transactionTypeId) : undefined;
+  const data = transactionTypeId
+    ? await lookup.listRatesByTransactionType(transactionTypeId)
+    : await lookup.listRates();
+  return sendSuccess(res, data);
+});
 
 /** GET /lookup/registration-type?registrationNo=... — proxies FBR Get_Reg_Type */
 export const registrationType = asyncHandler(async (req: Request, res: Response) => {

@@ -36,6 +36,10 @@ export const listTransactionTypes = () =>
   FbrTransactionType.findAll({ order: [['transaction_desc', 'ASC']] });
 export const listSros = (limit = 500) => FbrSro.findAll({ order: [['sro_id', 'ASC']], limit });
 export const listRates = () => FbrRate.findAll({ order: [['rate_value', 'ASC']] });
+/** Rates scoped to one Sale Type's transactionTypeId — each sale type (Cement, Potassium
+ * Chlorate, Mobile Phones, etc.) has its OWN valid rate set per FBR, not a shared pool. */
+export const listRatesByTransactionType = (transactionTypeId: number) =>
+  FbrRate.findAll({ where: { transactionTypeId }, order: [['rate_value', 'ASC']] });
 
 /** Search HS codes (LIKE) */
 export const searchHsCodes = async (q: string, limit = 50) => {
@@ -300,11 +304,12 @@ export const syncAll = async (companyId: number): Promise<Record<string, number>
   }
 
   // Rates (§5.8) is NOT a flat reference list like the others — FBR requires
-  // date + transTypeId + originationSupplier (province) as query params. Default
-  // to transTypeId=18 ("Sale Invoice", per PRAL's own documented example), today's
-  // date, and this company's own declared province, so the "Sale Type" picker on
-  // the New Item page (which derives its options from synced rates) has something
-  // usable without requiring a separate UI for picking those filters up front.
+  // date + transTypeId + originationSupplier (province) as query params, and
+  // crucially each Sale Type (Cement, Potassium Chlorate, Mobile Phones, ...) has
+  // its OWN distinct transTypeId with its OWN valid rate set (confirmed live: a
+  // generic "18%" accepted for Standard Rate goods gets rejected with [0046] for
+  // Potassium Chlorate/Cement). Sync rates for EVERY known transaction type, not
+  // just one hardcoded default, so every Sale Type's Tax Rate picker is accurate.
   try {
     const company = await Company.findByPk(companyId);
     const province = company?.province
@@ -313,7 +318,16 @@ export const syncAll = async (companyId: number): Promise<Record<string, number>
     const today = new Date();
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const date = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
-    counts.rates = await syncRates(18, province?.stateProvinceCode, date, token);
+    const transTypes = await FbrTransactionType.findAll();
+    let total = 0;
+    for (const tt of transTypes) {
+      try {
+        total += await syncRates(tt.transactionTypeId, province?.stateProvinceCode, date, token);
+      } catch (err) {
+        logger.warn(`Reference sync failed for rates (transTypeId ${tt.transactionTypeId}): ${(err as Error).message}`);
+      }
+    }
+    counts.rates = total;
   } catch (err) {
     logger.warn(`Reference sync failed for rates: ${(err as Error).message}`);
     counts.rates = -1;
