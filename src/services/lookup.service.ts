@@ -10,7 +10,7 @@ import {
   FbrRate,
 } from '../models';
 import logger from '../utils/logger';
-import { NotFoundError } from '../utils/AppError';
+import { FbrApiError, NotFoundError } from '../utils/AppError';
 import * as fbr from './fbr-client.service';
 import * as fbrTokens from './fbr-token.service';
 
@@ -74,11 +74,22 @@ export const getRegistrationType = async (
   registrationNo: string,
   token?: string,
 ): Promise<RegTypeResult> => {
-  return fbr.postUtility<RegTypeResult>(
-    config.fbr.endpoints.getRegType,
-    { Registration_No: registrationNo },
-    token,
-  );
+  try {
+    return await fbr.postUtility<RegTypeResult>(
+      config.fbr.endpoints.getRegType,
+      { Registration_No: registrationNo },
+      token,
+    );
+  } catch (err) {
+    // FBR answers "unregistered" with HTTP 500 + a normal body, so that body is a real result.
+    if (err instanceof FbrApiError) {
+      const body = err.details as RegTypeResult | undefined;
+      if (body && typeof body === 'object' && typeof body.REGISTRATION_TYPE === 'string') {
+        return body;
+      }
+    }
+    throw err;
+  }
 };
 
 /** Get_Reg_Type for a given company — resolves the company's active FBR token first. */
@@ -127,7 +138,11 @@ export const verifyRegistration = async (
   const asOf = date ?? new Date().toISOString().slice(0, 10);
   const [registrationType, taxpayerStatus] = await Promise.all([
     getRegistrationType(regno, token),
-    getActiveTaxpayerStatus(regno, asOf, token),
+    // STATL has no record for some unregistered numbers; the registration answer is still valid.
+    getActiveTaxpayerStatus(regno, asOf, token).catch((err): StatlResult => {
+      logger.warn(`STATL lookup failed for ${regno}: ${(err as Error).message}`);
+      return {};
+    }),
   ]);
   return { registrationType, taxpayerStatus };
 };
