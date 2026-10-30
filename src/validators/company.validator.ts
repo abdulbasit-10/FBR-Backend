@@ -5,7 +5,7 @@ export const createCompanySchema = Joi.object({
   name: Joi.string().trim().min(2).max(255).required(),
   businessName: Joi.string().trim().min(2).max(255).required(),
   ntn: Joi.string()
-    .pattern(/^\d{7}$|^\d{13}$/, 'NTN (7 digits) or CNIC (13 digits)')
+    .pattern(/^\d{7}(-\d)?$|^\d{13}$/, 'NTN (7 digits, optionally with a check digit e.g. 1234567-8) or CNIC (13 digits)')
     .required(),
   address: Joi.string().trim().min(2).max(500).required(),
   province: Joi.string().trim().min(2).max(100).required(),

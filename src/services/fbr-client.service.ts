@@ -25,6 +25,33 @@ const buildClient = (token: string): AxiosInstance =>
     },
   });
 
+/**
+ * FBR's sandbox gateway occasionally returns invalid JSON (observed: a trailing comma
+ * right before the closing brace, e.g. `"sourceInvoiceNo":"",\n}`). Axios silently
+ * falls back to returning the raw string in that case instead of throwing, which made
+ * every error field downstream (validationResponse.error/errorCode) silently become
+ * undefined. This recovers the real structured response whenever possible instead of
+ * losing FBR's actual error message.
+ */
+const parseFbrResponse = (data: unknown): FbrInvoiceResponse => {
+  if (data && typeof data === 'object') return data as FbrInvoiceResponse;
+  if (typeof data !== 'string') return {} as FbrInvoiceResponse;
+  try {
+    return JSON.parse(data) as FbrInvoiceResponse;
+  } catch {
+    try {
+      // Strip trailing commas before a closing } or ] and retry.
+      const repaired = data.replace(/,(\s*[}\]])/g, '$1');
+      return JSON.parse(repaired) as FbrInvoiceResponse;
+    } catch (err) {
+      logger.warn('Failed to parse FBR response even after trailing-comma repair', {
+        err: (err as Error).message,
+      });
+      return {} as FbrInvoiceResponse;
+    }
+  }
+};
+
 interface LogContext {
   companyId?: number | null;
   userId?: number | null;
@@ -122,7 +149,7 @@ export const postInvoice = async (params: {
       durationMs: Date.now() - started,
       ctx: params.ctx,
     });
-    return res.data as FbrInvoiceResponse;
+    return parseFbrResponse(res.data);
   } catch (err) {
     const axErr = err as AxiosError;
     await persistOutboundLog({
@@ -165,7 +192,7 @@ export const validateInvoice = async (params: {
       durationMs: Date.now() - started,
       ctx: params.ctx,
     });
-    return res.data as FbrInvoiceResponse;
+    return parseFbrResponse(res.data);
   } catch (err) {
     const axErr = err as AxiosError;
     await persistOutboundLog({

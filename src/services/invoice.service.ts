@@ -111,7 +111,7 @@ const buildFbrPayload = (invoice: Invoice, items: InvoiceItem[]): object => ({
   sellerBusinessName: invoice.sellerBusinessName,
   sellerProvince: invoice.sellerProvince,
   sellerAddress: invoice.sellerAddress,
-  buyerNTNCNIC: invoice.buyerNtnCnic,
+  buyerNTNCNIC: invoice.buyerNtnCnic ?? undefined,
   buyerBusinessName: invoice.buyerBusinessName,
   buyerProvince: invoice.buyerProvince,
   buyerAddress: invoice.buyerAddress,
@@ -129,7 +129,12 @@ const buildFbrPayload = (invoice: Invoice, items: InvoiceItem[]): object => ({
     fixedNotifiedValueOrRetailPrice: Number(it.fixedNotifiedValueOrRetailPrice),
     salesTaxApplicable: Number(it.salesTaxApplicable),
     salesTaxWithheldAtSource: Number(it.salesTaxWithheldAtSource),
-    extraTax: Number(it.extraTax),
+    // FBR's own official sample payload shows extraTax as "" (empty string) when
+    // not applicable — NOT 0 and NOT omitted, unlike furtherTax/fedPayable/discount
+    // which its sample shows as plain 0. Sending a literal 0 here gets rejected
+    // for some sale types (confirmed live: [0091] "Extra tax provided where sale
+    // is of reduced rate goods").
+    extraTax: Number(it.extraTax) || '',
     furtherTax: Number(it.furtherTax),
     sroScheduleNo: it.sroScheduleNo ?? '',
     fedPayable: Number(it.fedPayable),
@@ -378,6 +383,7 @@ export const getInvoice = async (id: number, companyId: number): Promise<Invoice
     include: [
       { model: InvoiceItem, as: 'items' },
       { model: Customer, as: 'customer' },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
       { model: InvoiceLog, as: 'logs', separate: true, order: [['created_at', 'ASC']] },
     ],
   });
@@ -391,6 +397,7 @@ export const getInvoiceByUuid = async (uuid: string, companyId: number): Promise
     include: [
       { model: InvoiceItem, as: 'items' },
       { model: Customer, as: 'customer' },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
       { model: InvoiceLog, as: 'logs', separate: true, order: [['created_at', 'ASC']] },
     ],
   });
@@ -524,6 +531,33 @@ const applyResponseToInvoice = async (
   invoice.fbrErrorCode = vr?.errorCode ?? null;
   invoice.fbrError = vr?.error ?? null;
 
+  // Save per-item status/error detail either way — FBR often puts the real rejection
+  // reason inside invoiceStatuses[].error per line item, leaving the top-level
+  // validationResponse.error empty, even on failure.
+  if (vr?.invoiceStatuses?.length) {
+    for (const s of vr.invoiceStatuses) {
+      const idx = parseInt(s.itemSNo, 10);
+      const item = items.find((i) => i.itemSrNo === idx);
+      if (item) {
+        item.fbrInvoiceNo = s.invoiceNo ?? null;
+        item.fbrStatusCode = s.statusCode ?? null;
+        item.fbrStatus = s.status ?? null;
+        item.fbrErrorCode = s.errorCode ?? null;
+        item.fbrError = s.error ?? null;
+        await item.save();
+      }
+    }
+    // Fall back to the first per-item error for the invoice-level banner when FBR
+    // didn't populate the header-level error/errorCode fields on rejection.
+    if (!invoice.fbrError) {
+      const firstItemError = vr.invoiceStatuses.find((s) => s.error);
+      if (firstItemError) {
+        invoice.fbrError = firstItemError.error;
+        invoice.fbrErrorCode = invoice.fbrErrorCode ?? firstItemError.errorCode;
+      }
+    }
+  }
+
   if (vr?.statusCode === '00') {
     if (mode === 'post') {
       invoice.status = 'posted';
@@ -532,22 +566,6 @@ const applyResponseToInvoice = async (
       invoice.postedAt = new Date();
     } else {
       invoice.status = 'validated';
-    }
-
-    // per-item statuses
-    if (vr.invoiceStatuses?.length) {
-      for (const s of vr.invoiceStatuses) {
-        const idx = parseInt(s.itemSNo, 10);
-        const item = items.find((i) => i.itemSrNo === idx);
-        if (item) {
-          item.fbrInvoiceNo = s.invoiceNo ?? null;
-          item.fbrStatusCode = s.statusCode ?? null;
-          item.fbrStatus = s.status ?? null;
-          item.fbrErrorCode = s.errorCode ?? null;
-          item.fbrError = s.error ?? null;
-          await item.save();
-        }
-      }
     }
   } else {
     invoice.status = 'failed';

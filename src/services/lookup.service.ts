@@ -10,7 +10,7 @@ import {
   FbrRate,
 } from '../models';
 import logger from '../utils/logger';
-import { NotFoundError } from '../utils/AppError';
+import { FbrApiError, NotFoundError } from '../utils/AppError';
 import * as fbr from './fbr-client.service';
 import * as fbrTokens from './fbr-token.service';
 
@@ -36,6 +36,10 @@ export const listTransactionTypes = () =>
   FbrTransactionType.findAll({ order: [['transaction_desc', 'ASC']] });
 export const listSros = (limit = 500) => FbrSro.findAll({ order: [['sro_id', 'ASC']], limit });
 export const listRates = () => FbrRate.findAll({ order: [['rate_value', 'ASC']] });
+/** Rates scoped to one Sale Type's transactionTypeId — each sale type (Cement, Potassium
+ * Chlorate, Mobile Phones, etc.) has its OWN valid rate set per FBR, not a shared pool. */
+export const listRatesByTransactionType = (transactionTypeId: number) =>
+  FbrRate.findAll({ where: { transactionTypeId }, order: [['rate_value', 'ASC']] });
 
 /** Search HS codes (LIKE) */
 export const searchHsCodes = async (q: string, limit = 50) => {
@@ -70,11 +74,22 @@ export const getRegistrationType = async (
   registrationNo: string,
   token?: string,
 ): Promise<RegTypeResult> => {
-  return fbr.postUtility<RegTypeResult>(
-    config.fbr.endpoints.getRegType,
-    { Registration_No: registrationNo },
-    token,
-  );
+  try {
+    return await fbr.postUtility<RegTypeResult>(
+      config.fbr.endpoints.getRegType,
+      { Registration_No: registrationNo },
+      token,
+    );
+  } catch (err) {
+    // FBR answers "unregistered" with HTTP 500 + a normal body, so that body is a real result.
+    if (err instanceof FbrApiError) {
+      const body = err.details as RegTypeResult | undefined;
+      if (body && typeof body === 'object' && typeof body.REGISTRATION_TYPE === 'string') {
+        return body;
+      }
+    }
+    throw err;
+  }
 };
 
 /** Get_Reg_Type for a given company — resolves the company's active FBR token first. */
@@ -123,7 +138,11 @@ export const verifyRegistration = async (
   const asOf = date ?? new Date().toISOString().slice(0, 10);
   const [registrationType, taxpayerStatus] = await Promise.all([
     getRegistrationType(regno, token),
-    getActiveTaxpayerStatus(regno, asOf, token),
+    // STATL has no record for some unregistered numbers; the registration answer is still valid.
+    getActiveTaxpayerStatus(regno, asOf, token).catch((err): StatlResult => {
+      logger.warn(`STATL lookup failed for ${regno}: ${(err as Error).message}`);
+      return {};
+    }),
   ]);
   return { registrationType, taxpayerStatus };
 };
@@ -298,6 +317,37 @@ export const syncAll = async (companyId: number): Promise<Record<string, number>
       counts[name] = -1;
     }
   }
+
+  // Rates (§5.8) is NOT a flat reference list like the others — FBR requires
+  // date + transTypeId + originationSupplier (province) as query params, and
+  // crucially each Sale Type (Cement, Potassium Chlorate, Mobile Phones, ...) has
+  // its OWN distinct transTypeId with its OWN valid rate set (confirmed live: a
+  // generic "18%" accepted for Standard Rate goods gets rejected with [0046] for
+  // Potassium Chlorate/Cement). Sync rates for EVERY known transaction type, not
+  // just one hardcoded default, so every Sale Type's Tax Rate picker is accurate.
+  try {
+    const company = await Company.findByPk(companyId);
+    const province = company?.province
+      ? await FbrProvince.findOne({ where: { stateProvinceDesc: company.province } })
+      : null;
+    const today = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const date = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+    const transTypes = await FbrTransactionType.findAll();
+    let total = 0;
+    for (const tt of transTypes) {
+      try {
+        total += await syncRates(tt.transactionTypeId, province?.stateProvinceCode, date, token);
+      } catch (err) {
+        logger.warn(`Reference sync failed for rates (transTypeId ${tt.transactionTypeId}): ${(err as Error).message}`);
+      }
+    }
+    counts.rates = total;
+  } catch (err) {
+    logger.warn(`Reference sync failed for rates: ${(err as Error).message}`);
+    counts.rates = -1;
+  }
+
   return counts;
 };
 
@@ -337,5 +387,109 @@ export const getSroSchedulesForCompany = async (
   originationSupplier?: number,
 ): Promise<SroScheduleResult[]> => {
   const token = await resolveCompanyToken(companyId);
-  return getSroSchedules(rateId, date, originationSupplier, token);
+  // FBR's SroSchedule endpoint rejects requests missing date / origination_supplier_csv
+  // (see §5.7 example: rate_id + date + origination_supplier_csv together). Default them
+  // from today's date and the company's own declared province when the caller (e.g. the
+  // New Item page) only supplies rateId — same defaults syncRates() uses in syncAll().
+  let resolvedDate = date;
+  let resolvedOrigination = originationSupplier;
+  if (!resolvedDate || resolvedOrigination === undefined) {
+    const company = await Company.findByPk(companyId);
+    if (resolvedOrigination === undefined && company?.province) {
+      const province = await FbrProvince.findOne({ where: { stateProvinceDesc: company.province } });
+      resolvedOrigination = province?.stateProvinceCode;
+    }
+    if (!resolvedDate) {
+      const today = new Date();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      resolvedDate = `${String(today.getDate()).padStart(2, '0')}-${months[today.getMonth()]}-${today.getFullYear()}`;
+    }
+  }
+  return getSroSchedules(rateId, resolvedDate, resolvedOrigination, token);
+};
+
+// ---------- SRO Item (§ SROItem v2 — distinct from /sroitemcode v1, scoped to a chosen SRO Schedule) ----------
+
+export interface SroItemResult {
+  srO_ITEM_ID: number;
+  srO_ITEM_DESC: string;
+}
+
+/**
+ * GET /pdi/v2/SROItem?date=&sro_id= — the Item Serial No list valid for a SPECIFIC SRO
+ * Schedule (sro_id from getSroSchedules/§5.7). NOT the same as the static /pdi/v1/sroitemcode
+ * list (cached in fbr_sros) which isn't actually scoped to the chosen schedule — that's why
+ * the "Item Serial" picker on the New Item page previously had no relevant options for most
+ * SRO Schedules (confirmed live: FBR error [0078] "Valid Item Sr. No. is mandatory where
+ * SRO/Schedule No. is provided").
+ */
+export const getSroItems = async (
+  sroId: number,
+  date?: string,
+  token?: string,
+): Promise<{ sroItemId: number; sroItemDesc: string }[]> => {
+  const params: Record<string, string | number> = { sro_id: sroId };
+  if (date) params.date = date;
+
+  const data = await fbr.fetchReference<Array<Record<string, unknown>>>(
+    config.fbr.endpoints.sroItemV2,
+    params,
+    token,
+  );
+  return data
+    .map((d) => ({
+      sroItemId: Number(d.srO_ITEM_ID ?? d.sroItemId),
+      sroItemDesc: String(d.srO_ITEM_DESC ?? d.sroItemDesc ?? '').trim(),
+    }))
+    .filter((r) => Number.isFinite(r.sroItemId));
+};
+
+/** SRO Item for a given company — resolves the company's active FBR token first. */
+export const getSroItemsForCompany = async (
+  companyId: number,
+  sroId: number,
+  date?: string,
+): Promise<{ sroItemId: number; sroItemDesc: string }[]> => {
+  const token = await resolveCompanyToken(companyId);
+  // Per spec §5.10 the example uses YYYY-MM-DD ("date=2025-03-25"), unlike the
+  // DD-Mon-YYYY format SaleTypeToRate/SroSchedule expect — sending the wrong
+  // format here gets a bare 500 back from FBR itself (confirmed live).
+  const resolvedDate = date ?? new Date().toISOString().slice(0, 10);
+  return getSroItems(sroId, resolvedDate, token);
+};
+
+// ---------- HS Code → UOM (§5.9 — valid units of measure for a specific HS code) ----------
+
+/**
+ * GET /pdi/v2/HS_UOM?hs_code=&annexure_id= — the UOM(s) actually valid for a given HS code.
+ * NOT the same as the generic /pdi/v1/uom flat list (cached in fbr_uoms) — FBR rejects
+ * invoices whose item UOM isn't in this HS-code-specific set with [0099] "Provided UoM is
+ * not allowed against the provided HS Code" even when the UOM is a perfectly valid generic one.
+ */
+export const getHsUoms = async (
+  hsCode: string,
+  annexureId: number,
+  token?: string,
+): Promise<{ uomId: number; description: string }[]> => {
+  const data = await fbr.fetchReference<Array<Record<string, unknown>>>(
+    config.fbr.endpoints.hsUom,
+    { hs_code: hsCode, annexure_id: annexureId },
+    token,
+  );
+  return data
+    .map((d) => ({
+      uomId: Number(d.uoM_ID ?? d.uomId),
+      description: String(d.description ?? '').trim(),
+    }))
+    .filter((r) => Number.isFinite(r.uomId));
+};
+
+/** HS→UOM for a given company — resolves the company's active FBR token first. */
+export const getHsUomsForCompany = async (
+  companyId: number,
+  hsCode: string,
+  annexureId: number,
+): Promise<{ uomId: number; description: string }[]> => {
+  const token = await resolveCompanyToken(companyId);
+  return getHsUoms(hsCode, annexureId, token);
 };

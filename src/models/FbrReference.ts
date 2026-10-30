@@ -17,8 +17,7 @@ export type FbrProvinceCreation = Optional<FbrProvinceAttributes, 'id' | 'synced
 
 export class FbrProvince
   extends Model<FbrProvinceAttributes, FbrProvinceCreation>
-  implements FbrProvinceAttributes
-{
+  implements FbrProvinceAttributes {
   declare id: number;
   declare stateProvinceCode: number;
   declare stateProvinceDesc: string;
@@ -60,8 +59,7 @@ export type FbrDocTypeCreation = Optional<FbrDocTypeAttributes, 'id' | 'syncedAt
 
 export class FbrDocType
   extends Model<FbrDocTypeAttributes, FbrDocTypeCreation>
-  implements FbrDocTypeAttributes
-{
+  implements FbrDocTypeAttributes {
   declare id: number;
   declare docTypeId: number;
   declare docDescription: string;
@@ -103,8 +101,7 @@ export type FbrHsCodeCreation = Optional<FbrHsCodeAttributes, 'id' | 'syncedAt'>
 
 export class FbrHsCode
   extends Model<FbrHsCodeAttributes, FbrHsCodeCreation>
-  implements FbrHsCodeAttributes
-{
+  implements FbrHsCodeAttributes {
   declare id: number;
   declare hsCode: string;
   declare description: string;
@@ -174,8 +171,7 @@ export type FbrTransactionTypeCreation = Optional<FbrTransactionTypeAttributes, 
 
 export class FbrTransactionType
   extends Model<FbrTransactionTypeAttributes, FbrTransactionTypeCreation>
-  implements FbrTransactionTypeAttributes
-{
+  implements FbrTransactionTypeAttributes {
   declare id: number;
   declare transactionTypeId: number;
   declare transactionDesc: string;
@@ -260,8 +256,7 @@ export type FbrRateCreation = Optional<
 
 export class FbrRate
   extends Model<FbrRateAttributes, FbrRateCreation>
-  implements FbrRateAttributes
-{
+  implements FbrRateAttributes {
   declare id: number;
   declare rateId: number;
   declare rateDesc: string;
@@ -307,7 +302,7 @@ FbrRate.init(
     tableName: 'fbr_rates',
     timestamps: false,
     indexes: [
-      { fields: ['rate_id'] },
+      { unique: true, fields: ['rate_id', 'transaction_type_id'] },
       { fields: ['transaction_type_id', 'province_id', 'effective_date'] },
     ],
   },

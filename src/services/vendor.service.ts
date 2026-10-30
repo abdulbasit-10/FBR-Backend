@@ -1,5 +1,6 @@
 import { Vendor, VendorAttributes, VendorCreationAttributes } from '../models';
 import { NotFoundError } from '../utils/AppError';
+import { normalizeNtnCnic } from '../constants/fbr';
 import {
   PaginationParams,
   PaginatedResult,
@@ -58,7 +59,12 @@ export const createVendor = async (
   });
   const lastNum = last?.vendorNo ? parseInt(last.vendorNo.replace('V-', ''), 10) || 0 : 0;
   const vendorNo = `V-${String(lastNum + 1).padStart(6, '0')}`;
-  return Vendor.create({ ...data, companyId, vendorNo } as VendorCreationAttributes);
+  return Vendor.create({
+    ...data,
+    companyId,
+    vendorNo,
+    ntnCnic: data.ntnCnic ? normalizeNtnCnic(data.ntnCnic) : data.ntnCnic,
+  } as VendorCreationAttributes);
 };
 
 export const updateVendor = async (
@@ -67,7 +73,7 @@ export const updateVendor = async (
   data: Partial<VendorAttributes>,
 ): Promise<Vendor> => {
   const v = await getVendorByUuid(uuid, companyId);
-  await v.update(data);
+  await v.update(data.ntnCnic ? { ...data, ntnCnic: normalizeNtnCnic(data.ntnCnic) } : data);
   return v;
 };
 

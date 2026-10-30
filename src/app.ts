@@ -37,8 +37,7 @@ app.use(httpLogger);
 app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // ---------- Rate limiting ----------
-// Attach req.user (if a valid token is present) so limits below can be keyed per-user
-// instead of per-IP — otherwise everyone behind the same office/NAT IP shares one budget.
+
 app.use(optionalAuthenticate);
 
 const rateLimitKey = (req: Request): string => req.user?.id?.toString() ?? req.ip ?? 'anonymous';

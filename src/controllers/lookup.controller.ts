@@ -30,9 +30,13 @@ export const transactionTypes = asyncHandler(async (_req: Request, res: Response
 export const sros = asyncHandler(async (_req: Request, res: Response) =>
   sendSuccess(res, await lookup.listSros()),
 );
-export const rates = asyncHandler(async (_req: Request, res: Response) =>
-  sendSuccess(res, await lookup.listRates()),
-);
+export const rates = asyncHandler(async (req: Request, res: Response) => {
+  const transactionTypeId = req.query.transactionTypeId ? Number(req.query.transactionTypeId) : undefined;
+  const data = transactionTypeId
+    ? await lookup.listRatesByTransactionType(transactionTypeId)
+    : await lookup.listRates();
+  return sendSuccess(res, data);
+});
 
 /** GET /lookup/registration-type?registrationNo=... — proxies FBR Get_Reg_Type */
 export const registrationType = asyncHandler(async (req: Request, res: Response) => {
@@ -113,5 +117,23 @@ export const sroSchedules = asyncHandler(async (req: Request, res: Response) => 
     ? Number(req.query.originationSupplier)
     : undefined;
   const data = await lookup.getSroSchedulesForCompany(companyIdOf(req), rateId, date, originationSupplier);
+  return sendSuccess(res, data);
+});
+
+/** GET /lookup/sro-items?sroId=&date= — proxies FBR SROItem v2 (Item Serial No scoped to a chosen SRO Schedule) */
+export const sroItems = asyncHandler(async (req: Request, res: Response) => {
+  const sroId = Number(req.query.sroId);
+  if (!Number.isFinite(sroId)) throw new BadRequestError('sroId is required');
+  const date = (req.query.date as string | undefined)?.trim() || undefined;
+  const data = await lookup.getSroItemsForCompany(companyIdOf(req), sroId, date);
+  return sendSuccess(res, data);
+});
+
+/** GET /lookup/hs-uoms?hsCode=&annexureId= — proxies FBR HS_UOM (valid UOMs for a specific HS code) */
+export const hsUoms = asyncHandler(async (req: Request, res: Response) => {
+  const hsCode = (req.query.hsCode as string | undefined)?.trim();
+  if (!hsCode) throw new BadRequestError('hsCode is required');
+  const annexureId = Number(req.query.annexureId ?? 3);
+  const data = await lookup.getHsUomsForCompany(companyIdOf(req), hsCode, annexureId);
   return sendSuccess(res, data);
 });
